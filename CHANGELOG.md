@@ -20,7 +20,7 @@
 * Configure Net::HTTP to only use TLS
 * Don't send queue if there is no content
 * Don't retry transmission when response code is 400 (no content)
-* Don't start Resque IPC server when AppSignal is not active
+* Don't start Resque IPC server when Haystack is not active
 * Display warning message when attempting to send a non-exception to `send_exception`
 * Fix capistrano 2 detection
 * Fix issue with Sinatra integration attempting to attach an exception to a transaction that doesn't exist.
@@ -41,7 +41,7 @@
 # 0.11.8
 * Add frontend error catcher
 * Add background job metadata (queue, priority etc.) to transaction overview
-* Add APPSIGNAL_APP_ENV variable to Rails config, so you can override the environment
+* Add HAYSTACK_APP_ENV variable to Rails config, so you can override the environment
 * Handle http queue times in microseconds too
 * Use less memory when retrying transmissions and don't retry if there's
   a queue on shutdown
@@ -50,7 +50,7 @@
 * Add option to override Job name in Delayed Job
 
 # 0.11.6
-* Use `APPSIGNAL_APP_NAME` and `APPSIGNAL_ACTIVE` env vars in config
+* Use `HAYSTACK_APP_NAME` and `HAYSTACK_ACTIVE` env vars in config
 * Better Sinatra support: Use route as action and set session data for Sinatra
 
 # 0.11.5
@@ -102,7 +102,7 @@
 * Use vendored notifications if ActiveSupport is not present
 * Update bundled CA certificates
 * Fix issue where backtrace can be nil
-* Use Appsignal.monitor_transaction to instrument and log errors for
+* Use Haystack.monitor_transaction to instrument and log errors for
   custom actions
 * Add option to ignore a specific action
 
@@ -117,7 +117,7 @@ Yanked
 * Resubscribe to notifications after fork
 
 # 0.9.3
-* Log if appsignal is not active for an environment
+* Log if haystack is not active for an environment
 
 # 0.9.2
 * Log Ruby version and platform on startup
@@ -138,7 +138,7 @@ Yanked
 
 # 0.8.14
 * Few tweaks in logging
-* Clarify Appsignal::Transaction.complete! code
+* Clarify Haystack::Transaction.complete! code
 
 # 0.8.13
 * Random sleep time before first transmission of queue
@@ -166,13 +166,13 @@ Yanked
 
 # 0.8.6
 * Resque support (beta)
-* Support tags in Appsignal.send_exception
+* Support tags in Haystack.send_exception
 * Alias tag_request to tag_job, for background jobs
 * Skip sanitization of env if env is nil
 * Small bugfix in forking logic
 * Don't send params if send_params is off in config
 * Remove --repository option in CLI
-* Name option in appsignal notify_of_deploy CLI
+* Name option in haystack notify_of_deploy CLI
 * Don't call to_hash on ENV
 * Get error message in CLI when config is not active
 
@@ -181,7 +181,7 @@ Yanked
 
 # 0.8.4
 * Skip session sanitize if not a http request
-* Use appsignal_config in Capistrano as initial config
+* Use haystack_config in Capistrano as initial config
 
 # 0.8.3
 * Restart thread when we've been forked
@@ -190,7 +190,7 @@ Yanked
 
 # 0.8.2
 * Bugfix in Delayed Job integration
-* appsignal prefix when logging to stdout
+* haystack prefix when logging to stdout
 * Log to stdout on Shelly Cloud
 
 # 0.8.1
@@ -213,7 +213,7 @@ Yanked
 * Send HTTP_X_FORWARDED_FOR env var
 
 # 0.6.6
-* Add Appsignal.add_exception
+* Add Haystack.add_exception
 
 # 0.6.5
 * Fix bug where fast requests are tracked with wrong action
@@ -224,7 +224,7 @@ Yanked
 # 0.6.3
 * Use a mutex around access to the aggregator
 * Bugfix for accessing connection config in Rails 3.0
-* Add Appsignal.tag_request
+* Add Haystack.tag_request
 * Only warn if there are duplicate push keys
 
 # 0.6.2
@@ -235,8 +235,8 @@ Yanked
 
 # 0.6.0
 * Support for Rails 4
-* Data that's posted to AppSignal is now gzipped
-* Add Appsignal.send_exception and Appsignal.listen_for_exception
+* Data that's posted to Haystack is now gzipped
+* Add Haystack.send_exception and Haystack.listen_for_exception
 * We now us the Rails backtrace cleaner
 
 # 0.5.5
@@ -250,6 +250,6 @@ Yanked
 
 # 0.5.2
 * General improvements to the Rails generator
-* Log to STDOUT if writing to log/appsignal.log is not possible (Heroku)
+* Log to STDOUT if writing to log/haystack.log is not possible (Heroku)
 * Handle the last transactions before the rails process shuts down
 * Require 'erb' to enable dynamic config

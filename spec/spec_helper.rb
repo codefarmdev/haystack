@@ -59,7 +59,7 @@ rescue LoadError
   false
 end
 
-require 'appsignal'
+require 'haystack'
 
 Dir[File.expand_path(File.join(File.dirname(__FILE__), 'support/helpers','*.rb'))].each {|f| require f}
 
@@ -79,13 +79,13 @@ RSpec.configure do |config|
   config.before do
     ENV['PWD'] = File.expand_path(File.join(File.dirname(__FILE__), '../'))
     ENV['RAILS_ENV'] = 'test'
-    ENV.delete('APPSIGNAL_PUSH_API_KEY')
-    ENV.delete('APPSIGNAL_API_KEY')
+    ENV.delete('HAYSTACK_PUSH_API_KEY')
+    ENV.delete('HAYSTACK_API_KEY')
   end
 
   config.after do
-    FileUtils.rm_f(File.join(project_fixture_path, 'log/appsignal.log'))
-    Appsignal.logger = nil
+    FileUtils.rm_f(File.join(project_fixture_path, 'log/haystack.log'))
+    Haystack.logger = nil
   end
 end
 

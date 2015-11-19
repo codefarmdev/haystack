@@ -1,0 +1,27 @@
+namespace :haystack do
+  task :deploy do
+    env = fetch(:rails_env, fetch(:rack_env, 'production'))
+    user = ENV['USER'] || ENV['USERNAME']
+    revision = fetch(:haystack_revision, fetch(:current_revision))
+    logger = fetch(:logger, Logger.new($stdout))
+
+    haystack_config = Haystack::Config.new(
+      ENV['PWD'],
+      env,
+      fetch(:haystack_config, {}),
+      logger
+    )
+
+    if haystack_config && haystack_config.active?
+      marker_data = {
+        :revision => revision,
+        :user => user
+      }
+
+      marker = Haystack::Marker.new(marker_data, haystack_config, logger)
+      marker.transmit
+    end
+  end
+end
+
+after 'deploy:finished', 'haystack:deploy'

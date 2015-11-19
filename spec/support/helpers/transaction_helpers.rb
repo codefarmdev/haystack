@@ -12,7 +12,7 @@ module TransactionHelpers
   end
 
   def transaction_with_exception
-    appsignal_transaction(:process_action_event => notification_event).tap do |o|
+    haystack_transaction(:process_action_event => notification_event).tap do |o|
       o.set_tags('user_id' => 123)
       begin
         raise ArgumentError, 'oh no'
@@ -27,40 +27,40 @@ module TransactionHelpers
   end
 
   def regular_transaction
-    appsignal_transaction(:process_action_event => notification_event)
+    haystack_transaction(:process_action_event => notification_event)
   end
 
   def regular_transaction_with_x_request_start
-    appsignal_transaction(
+    haystack_transaction(
       :process_action_event => notification_event,
       'HTTP_X_REQUEST_START' => "t=#{((fixed_time - 0.04) * 1000).to_i}"
     )
   end
 
   def slow_transaction(args={})
-    appsignal_transaction(
+    haystack_transaction(
       {
         :process_action_event => notification_event(
           :start => fixed_time,
-          :ending => fixed_time + Appsignal.config[:slow_request_threshold] / 999.99
+          :ending => fixed_time + Haystack.config[:slow_request_threshold] / 999.99
         )
       }.merge(args)
     )
   end
 
   def slower_transaction(args={})
-    appsignal_transaction(
+    haystack_transaction(
       {
         :process_action_event => notification_event(
           :start => fixed_time,
-          :ending => fixed_time + Appsignal.config[:slow_request_threshold] / 499.99
+          :ending => fixed_time + Haystack.config[:slow_request_threshold] / 499.99
         )
       }.merge(args)
     )
   end
 
   def background_job_transaction(args={}, payload=create_background_payload)
-    Appsignal::Transaction.create(
+    Haystack::Transaction.create(
       '1',
       {
         'SERVER_NAME' => 'localhost',
@@ -76,14 +76,14 @@ module TransactionHelpers
     end
   end
 
-  def appsignal_transaction(args={})
+  def haystack_transaction(args={})
     process_action_event = args.delete(:process_action_event)
     events = args.delete(:events) || [
       notification_event(:name => 'query.mongoid')
     ]
     exception = args.delete(:exception)
     defaults = args.delete(:defaults) || {}
-    Appsignal::Transaction.create(
+    Haystack::Transaction.create(
       '1',
       {
         'HTTP_USER_AGENT' => 'IE6',

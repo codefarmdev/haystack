@@ -1,12 +1,8 @@
-AppSignal agent
+Haystack agent
 =================
 
 This gem collects error and performance data from your Rails
-applications and sends it to [AppSignal](https://appsignal.com)
-
-[![Build Status](https://travis-ci.org/appsignal/appsignal.png?branch=master)](https://travis-ci.org/appsignal/appsignal)
-[![Gem Version](https://badge.fury.io/rb/appsignal.svg)](http://badge.fury.io/rb/appsignal)
-[![Code Climate](https://codeclimate.com/github/appsignal/appsignal.png)](https://codeclimate.com/github/appsignal/appsignal)
+applications and sends it to [Haystack](http://farmer.codefarm.com.br)
 
 ## Pull requests / issues
 
@@ -20,11 +16,11 @@ example
 
 ## Postprocessing middleware
 
-Appsignal sends Rails
+Haystack sends Rails
 [ActiveSupport::Notification](http://api.rubyonrails.org/classes/ActiveSupport/Notifications.html)-events
-to AppSignal over SSL. These events contain basic metadata such as a name
-and timestamps, and additional 'payload' log data. Appsignal uses a postprocessing
-middleware stack to clean up events before they get sent to appsignal.com. You
+to Haystack over SSL. These events contain basic metadata such as a name
+and timestamps, and additional 'payload' log data. Haystack uses a postprocessing
+middleware stack to clean up events before they get sent to haystack.com. You
 can add your own middleware to this stack in `config/environment/my_env.rb`.
 
 ### Examples
@@ -40,7 +36,7 @@ class MiddlewareTemplate
   end
 end
 
-Appsignal.post_processing_middleware.add MiddlewareTemplate
+Haystack.post_processing_middleware.add MiddlewareTemplate
 ```
 
 #### Remove boring payloads

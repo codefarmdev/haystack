@@ -1,7 +1,7 @@
-require 'appsignal'
+require 'haystack'
 require 'benchmark'
 
-class ::Appsignal::Event::ActiveRecordEvent
+class ::Haystack::Event::ActiveRecordEvent
   def connection_config; {:adapter => 'mysql'}; end
 end
 
@@ -12,18 +12,18 @@ namespace :benchmark do
   end
 
   task :run_inactive do
-    puts 'Running with appsignal off'
-    ENV['APPSIGNAL_PUSH_API_KEY'] = nil
+    puts 'Running with haystack off'
+    ENV['HAYSTACK_PUSH_API_KEY'] = nil
     subscriber = ActiveSupport::Notifications.subscribe do |*args|
-      # Add a subscriber so we can track the overhead of just appsignal
+      # Add a subscriber so we can track the overhead of just haystack
     end
     run_benchmark
     ActiveSupport::Notifications.unsubscribe(subscriber)
   end
 
   task :run_active do
-    puts 'Running with appsignal on'
-    ENV['APPSIGNAL_PUSH_API_KEY'] = 'something'
+    puts 'Running with haystack on'
+    ENV['HAYSTACK_PUSH_API_KEY'] = 'something'
     run_benchmark
   end
 end
@@ -31,14 +31,14 @@ end
 def run_benchmark
   total_objects = ObjectSpace.count_objects[:TOTAL]
   puts "Initializing, currently #{total_objects} objects"
-  Appsignal.config = Appsignal::Config.new('', 'production')
-  Appsignal.start
-  puts "Appsignal #{Appsignal.active? ? 'active' : 'not active'}"
+  Haystack.config = Haystack::Config.new('', 'production')
+  Haystack.start
+  puts "Haystack #{Haystack.active? ? 'active' : 'not active'}"
 
   puts 'Running 10_000 normal transactions'
   puts(Benchmark.measure do
     10_000.times do |i|
-      Appsignal::Transaction.create("transaction_#{i}", {})
+      Haystack::Transaction.create("transaction_#{i}", {})
 
       ActiveSupport::Notifications.instrument('sql.active_record', :sql => 'SELECT `users`.* FROM `users` WHERE `users`.`id` = ?')
       10.times do
@@ -62,14 +62,14 @@ def run_benchmark
         :params     => {:id => 1}
       )
 
-      Appsignal::Transaction.complete_current!
+      Haystack::Transaction.complete_current!
     end
   end)
 
-  if Appsignal.active?
-    puts "Running aggregator post_processed_queue! for #{Appsignal.agent.aggregator.queue.length} transactions"
+  if Haystack.active?
+    puts "Running aggregator post_processed_queue! for #{Haystack.agent.aggregator.queue.length} transactions"
     puts(Benchmark.measure do
-      Appsignal.agent.aggregator.post_processed_queue!.to_json
+      Haystack.agent.aggregator.post_processed_queue!.to_json
     end)
   end
 

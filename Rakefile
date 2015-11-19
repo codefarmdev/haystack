@@ -26,10 +26,10 @@ VERSION_MANAGERS = {
 }
 
 task :publish do
-  require 'appsignal/version'
+  require 'haystack/version'
 
-  NAME = 'appsignal'
-  VERSION_FILE = 'lib/appsignal/version.rb'
+  NAME = 'haystack'
+  VERSION_FILE = 'lib/haystack/version.rb'
   CHANGELOG_FILE = 'CHANGELOG.md'
 
   raise '$EDITOR should be set' unless ENV['EDITOR']
@@ -47,9 +47,9 @@ task :publish do
       puts "# Creating tag #{version}"
       puts `git tag #{version}`
       puts `git push origin #{version}`
-      puts `git push appsignal #{version}`
+      puts `git push haystack #{version}`
       puts `git push origin master`
-      puts `git push appsignal master`
+      puts `git push haystack master`
     rescue
       raise "Tag: '#{version}' already exists"
     end
@@ -60,7 +60,7 @@ task :publish do
   end
 
   def gem_version
-    Appsignal::VERSION
+    Haystack::VERSION
   end
 
   def version
@@ -75,7 +75,7 @@ task :publish do
 
   system("$EDITOR #{VERSION_FILE}")
   if changes.member?(VERSION_FILE)
-    Appsignal.send(:remove_const, :VERSION)
+    Haystack.send(:remove_const, :VERSION)
     load File.expand_path(VERSION_FILE)
     system("$EDITOR #{CHANGELOG_FILE}")
     build_and_push_gem
@@ -134,9 +134,9 @@ end
 task :console do
   require 'irb'
   require 'irb/completion'
-  require 'appsignal'
+  require 'haystack'
 
-  Appsignal.config = Appsignal::Config.new('.', :console)
+  Haystack.config = Haystack::Config.new('.', :console)
 
   ARGV.clear
   IRB.start

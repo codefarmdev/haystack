@@ -6,11 +6,11 @@ module ConfigHelpers
   end
 
   def project_fixture_log_file
-    File.join(project_fixture_path, 'log/appsignal.log')
+    File.join(project_fixture_path, 'log/haystack.log')
   end
 
   def project_fixture_config(env='production', initial_config={}, logger=Logger.new(project_fixture_log_file))
-    Appsignal::Config.new(
+    Haystack::Config.new(
       project_fixture_path,
       env,
       initial_config,
@@ -19,7 +19,7 @@ module ConfigHelpers
   end
 
   def start_agent(env='production')
-    Appsignal.config = project_fixture_config(env)
-    Appsignal.start
+    Haystack.config = project_fixture_config(env)
+    Haystack.start
   end
 end

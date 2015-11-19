@@ -1,6 +1,6 @@
 default: &defaults
   # Your push api key, it is possible to set this dynamically using ERB:
-  # push_api_key: "<%= ENV['APPSIGNAL_PUSH_API_KEY'] %>"
+  # push_api_key: "<%= ENV['HAYSTACK_PUSH_API_KEY'] %>"
   push_api_key: "my_app_key"
 
   # Your app's name
@@ -9,7 +9,7 @@ default: &defaults
   # The cuttoff point in ms above which a request is considered slow, default is 200
   # slow_request_threshold: 200
 
-  # Actions that should not be monitored by AppSignal
+  # Actions that should not be monitored by Haystack
   # ignore_actions:
   #   - ApplicationController#isup
 

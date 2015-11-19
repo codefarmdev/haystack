@@ -2,7 +2,7 @@ require 'spec_helper'
 
 if rails_present?
   require 'generator_spec/test_case'
-  require './lib/generators/appsignal/appsignal_generator'
+  require './lib/generators/haystack/haystack_generator'
 
   # The generator doesn't know we're testing
   # So change the path while running the generator
@@ -16,15 +16,15 @@ if rails_present?
     end
   end
 
-  describe AppsignalGenerator do
+  describe HaystackGenerator do
     include GeneratorSpec::TestCase
     destination tmp_dir
 
-    let(:authcheck) { Appsignal::AuthCheck.new(nil, nil) }
+    let(:authcheck) { Haystack::AuthCheck.new(nil, nil) }
     let(:err_stream) { StringIO.new }
 
     before do
-      Appsignal::AuthCheck.stub(:new => authcheck)
+      Haystack::AuthCheck.stub(:new => authcheck)
       FileUtils.rm_rf(tmp_dir)
       @original_stderr = $stderr
       $stderr = err_stream
@@ -44,14 +44,14 @@ if rails_present?
 
         it "should generate a correct config file" do
           fixture_config_file = File.open(File.join(fixtures_dir, 'generated_config.yml')).read
-          generated_config_file = File.open(File.join(tmp_dir, 'config/appsignal.yml')).read
+          generated_config_file = File.open(File.join(tmp_dir, 'config/haystack.yml')).read
 
           generated_config_file.should == fixture_config_file
         end
 
         it "should mention successful auth check" do
           @output.should include('success')
-          @output.should include('AppSignal has confirmed authorization!')
+          @output.should include('Haystack has confirmed authorization!')
         end
       end
 
@@ -65,7 +65,7 @@ if rails_present?
 
         it "should mention invalid key" do
           @output.should include('error')
-          @output.should include('API key not valid with AppSignal...')
+          @output.should include('API key not valid with Haystack...')
         end
       end
 
@@ -94,7 +94,7 @@ if rails_present?
         it "should mention internal failure" do
           @output.should include(
             'Something went wrong while trying to '\
-            'authenticate with AppSignal:'
+            'authenticate with Haystack:'
           )
         end
       end
@@ -109,7 +109,7 @@ if rails_present?
       it "should not create a config file" do
         destination_root.should have_structure {
           directory 'config' do
-            no_file 'appsignal.yml'
+            no_file 'haystack.yml'
             no_file 'deploy.rb'
           end
         }
@@ -127,7 +127,7 @@ if rails_present?
       it "should create a config file" do
         destination_root.should have_structure {
           directory 'config' do
-            file 'appsignal.yml'
+            file 'haystack.yml'
             no_file 'deploy.rb'
           end
         }
@@ -135,7 +135,7 @@ if rails_present?
 
       it "should mention the deploy task" do
         @output.should include('No capistrano setup detected!')
-        @output.should include('appsignal notify_of_deploy -h')
+        @output.should include('haystack notify_of_deploy -h')
       end
     end
 
@@ -156,9 +156,9 @@ if rails_present?
         destination_root.should have_structure {
           file 'Capfile'
           directory 'config' do
-            file 'appsignal.yml'
+            file 'haystack.yml'
             file 'deploy.rb' do
-              contains "require 'appsignal/capistrano'"
+              contains "require 'haystack/capistrano'"
             end
           end
         }
@@ -166,7 +166,7 @@ if rails_present?
 
       it "should not mention the deploy task" do
         @output.should_not include('No capistrano setup detected!')
-        @output.should_not include('appsignal notify_of_deploy -h')
+        @output.should_not include('haystack notify_of_deploy -h')
       end
     end
   end
