@@ -4,7 +4,6 @@ class HaystackGenerator < Rails::Generators::Base
   EXCLUDED_ENVIRONMENTS = ['test'].freeze
 
   source_root File.expand_path('../templates', __FILE__)
-  argument :push_api_key, :type => :string
   desc 'Generate a config file for Haystack'
 
   def copy_config_file
@@ -14,7 +13,7 @@ class HaystackGenerator < Rails::Generators::Base
       say_status(:error, 'Looks like you already have a config file', :red)
     else
       template(template_file, destination_file)
-      add_haystack_require_for_capistrano
+      # add_haystack_require_for_capistrano
       check_push_api_key
     end
   end

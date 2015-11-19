@@ -2,7 +2,7 @@ Description:
     Haystack install generator
 
 Example:
-    rails generate haystack PUSH_KEY
+    rails generate haystack
 
     This will create config/haystack.yml with your PUSH_KEY.
     If you use capistrano it will load Haystack in the deploy file.
