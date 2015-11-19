@@ -3,10 +3,14 @@ module Appsignal
     attr_reader :body
 
     def initialize(given_body)
-      @body = Zlib::Deflate.deflate(
-        Appsignal::ZippedPayload.json_generate(given_body),
-        Zlib::BEST_SPEED
-      )
+      # @body = Zlib::Deflate.deflate(
+      #   Appsignal::ZippedPayload.json_generate(given_body),
+      #   Zlib::BEST_SPEED
+      # )
+
+      @body = Appsignal::ZippedPayload.json_generate(given_body)
+      Appsignal.logger.info "Body: #{@body}"
+
     end
 
     protected

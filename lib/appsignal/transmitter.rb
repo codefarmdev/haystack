@@ -32,7 +32,7 @@ module Appsignal
     def uri
       @uri ||= URI("#{config[:endpoint]}/#{action}").tap do |uri|
         uri.query = ::Rack::Utils.build_query({
-          :api_key => config[:push_api_key],
+          :token => config[:push_api_key],
           :name => config[:name],
           :environment => config.env,
           :hostname => Socket.gethostname,
@@ -47,7 +47,7 @@ module Appsignal
       unless payload.is_a?(Appsignal::ZippedPayload)
         payload = Appsignal::ZippedPayload.new(payload)
       end
-      Appsignal.logger.debug "Transmitting payload to #{uri}"
+      Appsignal.logger.info "Transmitting payload to #{uri}"
       http_client.request(http_post(payload)).code
     end
 
@@ -56,7 +56,7 @@ module Appsignal
     def http_post(payload)
       Net::HTTP::Post.new(uri.request_uri).tap do |request|
         request['Content-Type'] = CONTENT_TYPE
-        request['Content-Encoding'] = CONTENT_ENCODING
+        # request['Content-Encoding'] = CONTENT_ENCODING
         request.body = payload.body
       end
     end

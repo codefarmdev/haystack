@@ -34,6 +34,7 @@ module Appsignal
                 :env, :fullpath, :time, :tags, :kind, :queue_start, :paused, :params
 
     def initialize(request_id, env, defaults={})
+      Appsignal.logger.debug "Transaction.init"
       Appsignal.transactions[request_id] = self
       @request_id           =  request_id
       @events               = []
