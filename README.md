@@ -1,31 +1,23 @@
-Haystack agent
+Monitor do Haystack
 =================
 
-This gem collects error and performance data from your Rails
-applications and sends it to [Haystack](http://farmer.codefarm.com.br)
+Essa gem coleta informações de erro e performance da aplicação em Rails e envia
+para o [Farmer](http://farmer.codefarm.com.br).
 
-## Pull requests / issues
+## Middleware de pós-processamento
 
-New features should be made in an issue or pullrequest. Title format is as follows:
+Haystack envia eventos
+[ActiveSupport::Notification](http://api.rubyonrails.org/classes/ActiveSupport/Notifications.html) para
+o Farmer.
 
-    name [request_count]
+Esses eventos contém metadados básicos como nome do evento e a timestamp, além de
+um 'payload' de informações de log. Haystack usa uma stack de middleware de pós-processamenot
+para fazer uma limpeza nos eventos antes de eles serem enviados para o Farmer. Você
+pode adiciona seu próprio middleware nessa stack em `config/environment/my_env.rb`.
 
-example
+### Exemplos
 
-    tagging [2]
-
-## Postprocessing middleware
-
-Haystack sends Rails
-[ActiveSupport::Notification](http://api.rubyonrails.org/classes/ActiveSupport/Notifications.html)-events
-to Haystack over SSL. These events contain basic metadata such as a name
-and timestamps, and additional 'payload' log data. Haystack uses a postprocessing
-middleware stack to clean up events before they get sent to haystack.com. You
-can add your own middleware to this stack in `config/environment/my_env.rb`.
-
-### Examples
-
-#### Minimal template
+#### Template básico
 
 ```ruby
 class MiddlewareTemplate
@@ -39,7 +31,7 @@ end
 Haystack.post_processing_middleware.add MiddlewareTemplate
 ```
 
-#### Remove boring payloads
+#### Remover payloads inúteis
 
 ```ruby
 class RemoveBoringPayload
@@ -50,9 +42,9 @@ class RemoveBoringPayload
 end
 ```
 
-## Development
+## Desenvolvimento
 
-Run rake bundle or, or run bundle install for all Gemfiles:
+Execute `rake bundle` ou execute `bundle install` para todos os Gemfiles:
 
 ```
 bundle --gemfile gemfiles/capistrano2.gemfile
@@ -67,7 +59,7 @@ bundle --gemfile gemfiles/rails-4.2.gemfile
 bundle --gemfile gemfiles/sinatra.gemfile
 ```
 
-To run the spec suite with a specific Gemfile:
+Para executar as specs com alguma Gemfile específica:
 
 ```
 BUNDLE_GEMFILE=gemfiles/capistrano2.gemfile bundle exec rspec
@@ -82,6 +74,14 @@ BUNDLE_GEMFILE=gemfiles/rails-4.2.gemfile bundle exec rspec
 BUNDLE_GEMFILE=gemfiles/sinatra.gemfile bundle exec rspec
 ```
 
-Or run `rake generate_bundle_and_spec_all` to generate a script that runs specs for all
-Ruby versions and gem combinations we support.
-You need Rvm or Rbenv to do this. Travis will run specs for these combinations as well.
+Ou execute `rake generate_bundle_and_spec_all` para gerar um script que execute
+as specs para todas as combinações de Ruby e gems que suportamos. Você precisa
+do RVM ou Rbenv para fazer isso. Travis executará essas specs também.
+
+Créditos
+-------
+
+![codefarm](https://codefarm.com.br/img/logo2.png)
+
+Haystack é mantido por [Code Farm](https://codefarm.com.br/). Baseada no agent
+da [AppSignal](https://appsignal.com).
