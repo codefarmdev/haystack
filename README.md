@@ -1,5 +1,4 @@
-Monitor do Haystack
-=================
+# Monitor do Haystack
 
 Essa gem coleta informações de erro e performance da aplicação em Rails e envia
 para o [Farmer](http://farmer.codefarm.com.br).
@@ -78,8 +77,7 @@ Ou execute `rake generate_bundle_and_spec_all` para gerar um script que execute
 as specs para todas as combinações de Ruby e gems que suportamos. Você precisa
 do RVM ou Rbenv para fazer isso. Travis executará essas specs também.
 
-Créditos
--------
+## Créditos
 
 ![codefarm](https://codefarm.com.br/img/logo2.png)
 
