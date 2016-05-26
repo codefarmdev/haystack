@@ -1,4 +1,5 @@
 require 'delegate'
+require 'get_process_mem'
 
 module Haystack
   class Transaction
@@ -33,7 +34,8 @@ module Haystack
             :params       => sanitized_params,
             :revision     => Haystack.agent.revision
           },
-          :failed     => exception?
+          :failed     => exception?,
+          :memory_usage => GetProcessMem.new.mb
         }
       end
 
