@@ -1,3 +1,6 @@
+# 0.11.21
+* Fix typo for integration with Capistrano
+
 # 0.11.17
 * Fix for bug using rack request in `send_exception`
 
