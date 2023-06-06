@@ -13,7 +13,7 @@ class HaystackGenerator < Rails::Generators::Base
       say_status(:error, 'Looks like you already have a config file', :red)
     else
       template(template_file, destination_file)
-      # add_haystack_require_for_capistrano
+      add_haystack_require_for_capistrano
       check_push_api_key
     end
   end
