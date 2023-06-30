@@ -71,7 +71,7 @@ module Haystack
       client.tap do |http|
         if uri.scheme == 'https'
           http.use_ssl     = true
-          http.ssl_version = :TLSv1
+          http.ssl_version = :TLSv1_2
           http.verify_mode = OpenSSL::SSL::VERIFY_PEER
           http.ca_file     = CA_FILE_PATH
         end
