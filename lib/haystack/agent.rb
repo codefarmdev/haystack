@@ -111,7 +111,7 @@ module Haystack
       # Replace aggregator while making sure no thread
       # is adding to it's queue
       aggregator_to_be_sent = nil
-      Thread.exclusive do
+      Thread::Mutex.new.synchronize do
         aggregator_to_be_sent = aggregator
         @aggregator = Aggregator.new
       end
@@ -155,7 +155,8 @@ module Haystack
       Haystack.logger.info('Forked worker process')
       @active = true
       @pid = Process.pid
-      Thread.exclusive do
+
+      Thread::Mutex.new.synchronize do
         @aggregator = Aggregator.new
       end
       resubscribe
