@@ -74,7 +74,7 @@ module Haystack
     end
 
     def load_config_from_disk
-      configurations = YAML.load(ERB.new(IO.read(config_file)).result), aliases: true)
+      configurations = YAML.load(ERB.new(IO.read(config_file)).result, aliases: true)
       config_for_this_env = configurations[env]
       if config_for_this_env
         config_for_this_env = Hash[config_for_this_env.map do |key, value|
