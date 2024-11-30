@@ -16,7 +16,7 @@ if defined?(::Rails)
           Haystack.config = Haystack::Config.new(
             Rails.root,
             ENV.fetch('HAYSTACK_APP_ENV', Rails.env),
-            :name => Rails.application.class.module_parent_name
+            :name => Rails.application.class.respond_to?(:parent_name) ? Rails.application.class.parent_name : Rails.application.class.module_parent_name
           )
 
           app.middleware.insert_before(
