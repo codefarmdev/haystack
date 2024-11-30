@@ -74,7 +74,12 @@ module Haystack
     end
 
     def load_config_from_disk
-      configurations = YAML.load(ERB.new(IO.read(config_file)).result, aliases: true)
+      configurations = if Rails::VERSION::MAJOR < 6
+        YAML.load(ERB.new(IO.read(config_file)).result)
+      else
+        YAML.load(ERB.new(IO.read(config_file)).result, aliases: true)
+      end
+
       config_for_this_env = configurations[env]
       if config_for_this_env
         config_for_this_env = Hash[config_for_this_env.map do |key, value|
