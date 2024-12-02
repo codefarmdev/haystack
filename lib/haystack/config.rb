@@ -74,10 +74,10 @@ module Haystack
     end
 
     def load_config_from_disk
-      configurations = if ::Rails::VERSION::MAJOR < 6
-        YAML.load(ERB.new(IO.read(config_file)).result)
-      else
+      configurations = begin
         YAML.load(ERB.new(IO.read(config_file)).result, aliases: true)
+      rescue ArgumentError
+        YAML.load(ERB.new(IO.read(config_file)).result)
       end
 
       config_for_this_env = configurations[env]
