@@ -74,7 +74,7 @@ module Haystack
     end
 
     def load_config_from_disk
-      configurations = if Rails::VERSION::MAJOR < 6
+      configurations = if ::Rails::VERSION::MAJOR < 6
         YAML.load(ERB.new(IO.read(config_file)).result)
       else
         YAML.load(ERB.new(IO.read(config_file)).result, aliases: true)
