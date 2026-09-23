@@ -7,14 +7,25 @@ module Haystack
           @app = app
         end
 
+        ERROR_EVENT_ID_HEADER = 'X-Haystack-Event-Id'
+
         def call(env)
           status, headers, response = @app.call(env)
+
+          # Avisa o SDK do navegador que esta requisição gerou um erro no
+          # backend: ele envia o replay do último minuto (ver generate_script)
+          error_event_id = backend_error_event_id(env)
+          headers[ERROR_EVENT_ID_HEADER] = error_event_id if error_event_id
 
           if html_response?(headers)
             begin
               body_content = extract_body(response)
-              response_body = inject_script(body_content, env)
+              response_body = inject_script(body_content, env, error_event_id)
               headers['Content-Length'] = response_body.bytesize.to_s
+              # O corpo original precisa ser fechado: é o close que encerra a
+              # requisição no Rails (executor/reloader); sem ele o lock de
+              # recarga fica preso e o app trava em development
+              response.close if response.respond_to?(:close)
               response = [response_body]
             rescue => e
               # A injeção do SDK nunca deve derrubar a página
@@ -26,6 +37,11 @@ module Haystack
         end
 
         private
+
+        def backend_error_event_id(env)
+          event_id = env[Haystack::Rack::CaptureExceptions::ERROR_EVENT_ID_KEY]
+          event_id if event_id.is_a?(String) && event_id.match?(/\A[0-9a-f]{32}\z/)
+        end
 
         def html_response?(headers)
           headers['Content-Type']&.include?('text/html')
@@ -42,7 +58,7 @@ module Haystack
           end
         end
 
-        def inject_script(body, env)
+        def inject_script(body, env, error_event_id = nil)
           config = Haystack.instance_variable_get(:@global_configuration)
 
           dsn = same_origin_dsn(config.js.dsn || ENV['HAYSTACK_DSN'], env)
@@ -53,7 +69,8 @@ module Haystack
             user_data: fetch_user_data(env, config),
             session_data: fetch_session_data(env),
             flash_messages: fetch_flash_messages(env),
-            request_params: fetch_request_params(env)
+            request_params: fetch_request_params(env),
+            error_event_id: error_event_id
           )
 
           body.sub('</head>', "#{script_content}\n</head>")
@@ -78,9 +95,10 @@ module Haystack
           controller = env['action_controller.instance']
           return {} unless controller
 
-          # Converte para hash seguro e filtra dados sensíveis
-          controller.params.to_unsafe_h
-            .except(:password, :password_confirmation, :credit_card)
+          # Mesmo filtro dos logs do Rails (filter_parameters), em todos os níveis
+          params = controller.params.to_unsafe_h.except(:controller, :action)
+          ActiveSupport::ParameterFilter.new(::Rails.application.config.filter_parameters)
+            .filter(params)
             .deep_transform_keys { |k| k.to_s.underscore }
         rescue => e
           { error: "params_error: #{e.message}" }
@@ -179,38 +197,133 @@ module Haystack
         # Com Turbolinks o <script> inline do <head> roda de novo a cada visita,
         # mas o SDK só aceita uma instância de replay: inicializa uma vez e, nas
         # visitas seguintes, só atualiza usuário e contextos da página atual.
-        def generate_script(config:, dsn:, user_data:, session_data:, flash_messages:, request_params:)
+        #
+        # Replay de erro: o SDK guarda o último minuto em buffer. Quando há um
+        # erro (de JS, ou do backend avisado pelo header X-Haystack-Event-Id numa
+        # resposta de XHR/fetch, como as visitas do Turbolinks), o buffer é
+        # enviado e a gravação continua por replay_after_error_seconds; depois o
+        # replay é encerrado e um buffer novo começa, pronto para o próximo erro.
+        def generate_script(config:, dsn:, user_data:, session_data:, flash_messages:, request_params:, error_event_id: nil)
+          after_error_ms = (config.js.replay_after_error_seconds || 30).to_i * 1000
+
           <<~SCRIPT
             <script src="/assets/haystack/bundle.tracing.replay.min.js"></script>
             <script>
               (function () {
                 if (!window.Haystack) return;
+                var HS = window.Haystack;
 
                 if (!window.__haystackInitialized) {
                   window.__haystackInitialized = true;
 
-                  Haystack.init({
+                  HS.init({
                     dsn: #{dsn.to_s.to_json},
                     replaysSessionSampleRate: #{config.js.replays_session_sample_rate || 0},
                     replaysOnErrorSampleRate: #{config.js.replays_on_error_sample_rate || 1},
                     environment: #{(config.js.environment || ::Rails.env).to_s.to_json},
                     tracesSampleRate: #{config.js.traces_sample_rate || 1},
                     integrations: [
-                      Haystack.replayIntegration({
+                      HS.replayIntegration({
                         maskAllText: #{config.js.mask_all_text.nil? ? false : config.js.mask_all_text},
                         blockAllMedia: #{config.js.block_all_media.nil? ? true : config.js.block_all_media},
                         mutationLimit: #{config.js.mutation_limit.to_i},
                         mutationBreadcrumbLimit: #{config.js.mutation_breadcrumb_limit.to_i},
                       }),
-                      Haystack.browserTracingIntegration(),
+                      HS.browserTracingIntegration(),
                     ]
                   });
+
+                  var afterErrorMs = #{after_error_ms};
+                  var stopTimer = null;
+                  var seenBackendErrors = {};
+
+                  var replay = function () { return HS.getReplay && HS.getReplay(); };
+                  // Só encerra replays que começaram por erro; sessões amostradas seguem
+                  var startedByError = function (r) {
+                    var session = r && r._replay && r._replay.session;
+                    return !!session && session.sampled === 'buffer';
+                  };
+
+                  // O prazo fica no sessionStorage: um recarregamento de página
+                  // perde o timer, mas o SDK retoma o replay da sessão
+                  var STOP_KEY = 'haystackReplayStopAt';
+                  var readStopAt = function () {
+                    try { return parseInt(sessionStorage.getItem(STOP_KEY) || '0', 10); } catch (e) { return 0; }
+                  };
+                  var writeStopAt = function (stopAt) {
+                    try {
+                      if (stopAt) { sessionStorage.setItem(STOP_KEY, String(stopAt)); } else { sessionStorage.removeItem(STOP_KEY); }
+                    } catch (e) {}
+                  };
+
+                  var armStop = function (stopAt) {
+                    clearTimeout(stopTimer);
+                    stopTimer = setTimeout(function () {
+                      writeStopAt(0);
+                      var r = replay();
+                      if (!startedByError(r)) return;
+                      Promise.resolve(r.stop()).then(function () { r.startBuffering(); });
+                    }, Math.max(0, stopAt - Date.now()));
+                  };
+
+                  var scheduleStop = function () {
+                    if (!startedByError(replay())) return;
+                    var stopAt = Date.now() + afterErrorMs;
+                    writeStopAt(stopAt);
+                    armStop(stopAt);
+                  };
+
+                  // Página nova no meio de um replay de erro: retoma o prazo (ou
+                  // encerra já, se ele passou ou se não há prazo registrado)
+                  setTimeout(function () {
+                    var r = replay();
+                    var stopAt = readStopAt();
+                    if (r && r._replay && r._replay.recordingMode === 'session' && startedByError(r)) {
+                      armStop(stopAt || Date.now());
+                    } else if (stopAt) {
+                      writeStopAt(0);
+                    }
+                  }, 1000);
+
+                  var onBackendError = function (eventId) {
+                    if (!eventId || seenBackendErrors[eventId]) return;
+                    seenBackendErrors[eventId] = true;
+                    var r = replay();
+                    if (!r || !r._replay) return;
+                    // Liga o erro do backend a este replay (vai em error_ids)
+                    try { r._replay.getContext().errorIds.add(eventId); } catch (e) {}
+                    Promise.resolve(r.flush()).then(scheduleStop);
+                  };
+                  window.__haystackBackendError = onBackendError;
+
+                  HS.getClient().on('afterSendEvent', function (event) {
+                    if (!event.type && event.exception) setTimeout(scheduleStop, 0);
+                  });
+
+                  var send = XMLHttpRequest.prototype.send;
+                  XMLHttpRequest.prototype.send = function () {
+                    this.addEventListener('loadend', function () {
+                      try { onBackendError(this.getResponseHeader(#{ERROR_EVENT_ID_HEADER.to_json})); } catch (e) {}
+                    });
+                    return send.apply(this, arguments);
+                  };
+
+                  if (window.fetch) {
+                    var fetch = window.fetch;
+                    window.fetch = function () {
+                      return fetch.apply(this, arguments).then(function (response) {
+                        try { onBackendError(response.headers.get(#{ERROR_EVENT_ID_HEADER.to_json})); } catch (e) {}
+                        return response;
+                      });
+                    };
+                  }
                 }
 
-                Haystack.setUser(#{user_data.any? ? user_data.to_json : 'null'});
-                Haystack.setContext('session', #{session_data.any? ? session_data.to_json : 'null'});
-                Haystack.setContext('flash_messages', #{flash_messages.any? ? flash_messages.to_json : 'null'});
-                Haystack.setContext('request_params', #{request_params.any? ? request_params.to_json : 'null'});
+                HS.setUser(#{user_data.any? ? user_data.to_json : 'null'});
+                HS.setContext('session', #{session_data.any? ? session_data.to_json : 'null'});
+                HS.setContext('flash_messages', #{flash_messages.any? ? flash_messages.to_json : 'null'});
+                HS.setContext('request_params', #{request_params.any? ? request_params.to_json : 'null'});
+                #{error_event_id ? "window.__haystackBackendError(#{error_event_id.to_json});" : ''}
               })();
             </script>
           SCRIPT

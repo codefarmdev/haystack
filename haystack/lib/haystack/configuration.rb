@@ -701,7 +701,7 @@ module Haystack
     class JsConfig
       attr_accessor :dsn, :replays_session_sample_rate, :replays_on_error_sample_rate,
                     :environment, :traces_sample_rate, :mask_all_text, :block_all_media,
-                    :mutation_limit, :mutation_breadcrumb_limit
+                    :mutation_limit, :mutation_breadcrumb_limit, :replay_after_error_seconds
 
       attr_accessor :user_name_method, :user_email_method, :user_url_method, :user_image_method
 
@@ -718,6 +718,8 @@ module Haystack
         # o replay é interrompido (0 desliga o limite)
         self.mutation_limit = 10_000
         self.mutation_breadcrumb_limit = 750
+        # Quanto o replay continua gravando depois do último erro
+        self.replay_after_error_seconds = 30
 
         self.user_name_method  = :name        # Default: current_user.name
         self.user_email_method = :email       # Default: current_user.email

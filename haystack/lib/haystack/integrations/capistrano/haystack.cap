@@ -1,0 +1,45 @@
+require "json"
+require "net/http"
+require "uri"
+
+namespace :haystack do
+  desc "Registra o deploy no Haystack (marcadores nos gráficos e revisão no ar)"
+  task :deploy do
+    dsn = fetch(:haystack_dsn, ENV["HAYSTACK_DSN"]).to_s
+    revision = fetch(:haystack_revision, fetch(:current_revision))
+    user = fetch(:haystack_user, ENV["USER"] || ENV["USERNAME"])
+
+    if dsn.empty?
+      warn "[haystack] HAYSTACK_DSN não definido; deploy não registrado"
+      next
+    end
+
+    begin
+      # O token do projeto é o último segmento do path da DSN; o servidor
+      # recebe os marcadores no mesmo endpoint do Haystack antigo
+      dsn_uri = URI.parse(dsn)
+      token = dsn_uri.path.split("/").last
+      default_url = URI::Generic.build(scheme: dsn_uri.scheme, host: dsn_uri.host, port: dsn_uri.port, path: "/api/requisicoes/markers").to_s
+      uri = URI.parse(fetch(:haystack_markers_url, default_url))
+      uri.query = URI.encode_www_form(token: token)
+
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = uri.scheme == "https"
+      http.open_timeout = 5
+      http.read_timeout = 10
+
+      request = Net::HTTP::Post.new(uri, "Content-Type" => "application/json")
+      request.body = { revision: revision, user: user }.to_json
+      response = http.request(request)
+
+      if response.is_a?(Net::HTTPSuccess)
+        puts "[haystack] deploy #{revision} registrado (#{user})"
+      else
+        warn "[haystack] falha ao registrar o deploy: HTTP #{response.code}"
+      end
+    rescue StandardError => e
+      # O deploy não deve falhar por causa do marcador
+      warn "[haystack] falha ao registrar o deploy: #{e.class}: #{e.message}"
+    end
+  end
+end
