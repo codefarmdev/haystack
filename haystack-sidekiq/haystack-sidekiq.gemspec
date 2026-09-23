@@ -16,11 +16,13 @@ Gem::Specification.new do |spec|
   spec.files = `git ls-files | grep -Ev '^(spec|benchmarks|examples|\.rubocop\.yml)'`.split("\n")
 
   github_root_uri = 'https://github.com/gethaystack/haystack-ruby'
-  spec.homepage = "#{github_root_uri}/tree/#{spec.version}/#{spec.name}"
+  # Sem spec.homepage: validá-lo faz o rubygems carregar o uri padrão antes do
+  # Bundler, o que conflita com apps que fixam outra versão da gem uri.
+  homepage = "#{github_root_uri}/tree/#{spec.version}/#{spec.name}"
 
   spec.metadata = {
-    "homepage_uri" => spec.homepage,
-    "source_code_uri" => spec.homepage,
+    "homepage_uri" => homepage,
+    "source_code_uri" => homepage,
     "changelog_uri" => "#{github_root_uri}/blob/#{spec.version}/CHANGELOG.md",
     "bug_tracker_uri" => "#{github_root_uri}/issues",
     "documentation_uri" => "http://www.rubydoc.info/gems/#{spec.name}/#{spec.version}"

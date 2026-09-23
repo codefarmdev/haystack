@@ -11,10 +11,15 @@ module Haystack
           status, headers, response = @app.call(env)
 
           if html_response?(headers)
-            body_content = extract_body(response)
-            response_body = inject_script(body_content, env)
-            headers['Content-Length'] = response_body.bytesize.to_s
-            response = [response_body]
+            begin
+              body_content = extract_body(response)
+              response_body = inject_script(body_content, env)
+              headers['Content-Length'] = response_body.bytesize.to_s
+              response = [response_body]
+            rescue => e
+              # A injeção do SDK nunca deve derrubar a página
+              ::Rails.logger.warn("[Haystack] falha ao injetar o SDK JS: #{e.class}: #{e.message}")
+            end
           end
 
           [status, headers, response]
@@ -40,7 +45,7 @@ module Haystack
         def inject_script(body, env)
           config = Haystack.instance_variable_get(:@global_configuration)
 
-          dsn = config.js.dsn || ENV['HAYSTACK_DSN']
+          dsn = same_origin_dsn(config.js.dsn || ENV['HAYSTACK_DSN'], env)
 
           script_content = generate_script(
             config: config,
@@ -52,6 +57,21 @@ module Haystack
           )
 
           body.sub('</head>', "#{script_content}\n</head>")
+        end
+
+        # Se a DSN aponta para o próprio host da página, usa o protocolo/porta da
+        # página: evita mixed content (http -> https) e certificado não confiável
+        def same_origin_dsn(dsn, env)
+          return dsn if dsn.blank?
+
+          uri = URI.parse(dsn)
+          request = ActionDispatch::Request.new(env)
+          return dsn unless uri.host == request.host
+
+          userinfo = "#{uri.userinfo}@" if uri.userinfo
+          "#{request.scheme}://#{userinfo}#{request.host_with_port}#{uri.path}"
+        rescue URI::InvalidURIError
+          dsn
         end
 
         def fetch_request_params(env)
@@ -89,7 +109,7 @@ module Haystack
             id: current_user.id,
             username: fetch_user_attribute(current_user, config.js.user_name_method, :name),
             email: fetch_user_attribute(current_user, config.js.user_email_method, :email),
-            url: fetch_user_url(current_user, config.js.user_url_method),
+            url: fetch_user_url(current_user, config.js.user_url_method, env),
             image_url: fetch_user_attribute(current_user, config.js.user_image_method, :avatar_image_url),
             ip_address: ip_address
           }
@@ -103,9 +123,13 @@ module Haystack
         end
 
         # Obtém a URL do usuário de forma segura
-        def fetch_user_url(user, method)
+        def fetch_user_url(user, method, env)
           return unless user && method
-          ::Rails.application.routes.url_helpers.public_send(method, user)
+
+          request = ActionDispatch::Request.new(env)
+          ::Rails.application.routes.url_helpers.public_send(method, user, host: request.host, port: request.optional_port, protocol: request.protocol)
+        rescue StandardError
+          nil
         end
 
         # Captura os dados da sessão
@@ -116,8 +140,7 @@ module Haystack
 
           processed_warden = if warden_user && warden_user.is_a?(Array) && warden_user[0].is_a?(Array)
                                 {
-                                  user_id: warden_user.dig(0, 0)&.to_s,
-                                  password_hash: warden_user.dig(1)&.to_s
+                                  user_id: warden_user.dig(0, 0)&.to_s
                                 }
                               else
                                 warden_user.to_s
@@ -126,7 +149,6 @@ module Haystack
           # Captura chaves padrão da sessão
           session_info = {
             session_id: session['session_id'],
-            csrf_token: session['_csrf_token'],
             warden_user: processed_warden
           }
 
@@ -154,32 +176,42 @@ module Haystack
         end
 
         # Gera o script que será injetado no HTML
+        # Com Turbolinks o <script> inline do <head> roda de novo a cada visita,
+        # mas o SDK só aceita uma instância de replay: inicializa uma vez e, nas
+        # visitas seguintes, só atualiza usuário e contextos da página atual.
         def generate_script(config:, dsn:, user_data:, session_data:, flash_messages:, request_params:)
           <<~SCRIPT
             <script src="/assets/haystack/bundle.tracing.replay.min.js"></script>
-            <script >
-              Haystack.init({
-                dsn: "#{dsn}",
-                replaysSessionSampleRate: #{config.js.replays_session_sample_rate || 0},
-                replaysOnErrorSampleRate: #{config.js.replays_on_error_sample_rate || 1},
-                environment: "#{config.js.environment || ::Rails.env}",
-                tracesSampleRate: #{config.js.traces_sample_rate || 1},
-                integrations: [
-                  Haystack.replayIntegration({
-                    maskAllText: #{config.js.mask_all_text.nil? ? false : config.js.mask_all_text},
-                    blockAllMedia: #{config.js.block_all_media.nil? ? true : config.js.block_all_media},
-                  }),
-                  Haystack.browserTracingIntegration(),
-                ]
-              });
+            <script>
+              (function () {
+                if (!window.Haystack) return;
 
-              #{user_data.any? ? "Haystack.setUser(#{user_data.to_json.html_safe});" : ""}
+                if (!window.__haystackInitialized) {
+                  window.__haystackInitialized = true;
 
-              #{session_data.any? ? "Haystack.setContext('session', #{session_data.to_json.html_safe});" : ""}
+                  Haystack.init({
+                    dsn: #{dsn.to_s.to_json},
+                    replaysSessionSampleRate: #{config.js.replays_session_sample_rate || 0},
+                    replaysOnErrorSampleRate: #{config.js.replays_on_error_sample_rate || 1},
+                    environment: #{(config.js.environment || ::Rails.env).to_s.to_json},
+                    tracesSampleRate: #{config.js.traces_sample_rate || 1},
+                    integrations: [
+                      Haystack.replayIntegration({
+                        maskAllText: #{config.js.mask_all_text.nil? ? false : config.js.mask_all_text},
+                        blockAllMedia: #{config.js.block_all_media.nil? ? true : config.js.block_all_media},
+                        mutationLimit: #{config.js.mutation_limit.to_i},
+                        mutationBreadcrumbLimit: #{config.js.mutation_breadcrumb_limit.to_i},
+                      }),
+                      Haystack.browserTracingIntegration(),
+                    ]
+                  });
+                }
 
-              #{flash_messages.any? ? "Haystack.setContext('flash_messages', #{flash_messages.to_json.html_safe});" : ""}
-
-              #{request_params.any? ? "Haystack.setContext('request_params', #{request_params.to_json.html_safe});" : ""}
+                Haystack.setUser(#{user_data.any? ? user_data.to_json : 'null'});
+                Haystack.setContext('session', #{session_data.any? ? session_data.to_json : 'null'});
+                Haystack.setContext('flash_messages', #{flash_messages.any? ? flash_messages.to_json : 'null'});
+                Haystack.setContext('request_params', #{request_params.any? ? request_params.to_json : 'null'});
+              })();
             </script>
           SCRIPT
         end

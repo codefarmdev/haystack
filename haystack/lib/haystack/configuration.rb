@@ -700,7 +700,8 @@ module Haystack
 
     class JsConfig
       attr_accessor :dsn, :replays_session_sample_rate, :replays_on_error_sample_rate,
-                    :environment, :traces_sample_rate, :mask_all_text, :block_all_media
+                    :environment, :traces_sample_rate, :mask_all_text, :block_all_media,
+                    :mutation_limit, :mutation_breadcrumb_limit
 
       attr_accessor :user_name_method, :user_email_method, :user_url_method, :user_image_method
 
@@ -713,6 +714,10 @@ module Haystack
         self.traces_sample_rate = 1
         self.mask_all_text = false
         self.block_all_media = true
+        # Defaults do SDK de browser: acima de mutation_limit mutações num lote
+        # o replay é interrompido (0 desliga o limite)
+        self.mutation_limit = 10_000
+        self.mutation_breadcrumb_limit = 750
 
         self.user_name_method  = :name        # Default: current_user.name
         self.user_email_method = :email       # Default: current_user.email
