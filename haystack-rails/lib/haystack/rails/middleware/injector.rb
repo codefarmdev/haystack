@@ -38,6 +38,13 @@ module Haystack
 
         private
 
+        def resolve_setting(value)
+          value.respond_to?(:call) ? value.call : value
+        rescue StandardError => e
+          ::Rails.logger.warn("[Haystack] configuração do replay indisponível: #{e.class}: #{e.message}")
+          nil
+        end
+
         def backend_error_event_id(env)
           event_id = env[Haystack::Rack::CaptureExceptions::ERROR_EVENT_ID_KEY]
           event_id if event_id.is_a?(String) && event_id.match?(/\A[0-9a-f]{32}\z/)
@@ -205,6 +212,21 @@ module Haystack
         # replay é encerrado e um buffer novo começa, pronto para o próximo erro.
         def generate_script(config:, dsn:, user_data:, session_data:, flash_messages:, request_params:, error_event_id: nil)
           after_error_ms = (config.js.replay_after_error_seconds || 30).to_i * 1000
+          # As taxas podem ser lambdas, avaliadas a cada página (ex.: lidas da
+          # configuração do projeto); com as duas em zero o replay nem é ligado
+          session_rate = resolve_setting(config.js.replays_session_sample_rate).to_f
+          error_rate = resolve_setting(config.js.replays_on_error_sample_rate)
+          error_rate = error_rate.nil? ? 1.0 : error_rate.to_f
+          replay_integration = if session_rate.positive? || error_rate.positive?
+            <<~JS.strip
+              HS.replayIntegration({
+                        maskAllText: #{config.js.mask_all_text.nil? ? false : config.js.mask_all_text},
+                        blockAllMedia: #{config.js.block_all_media.nil? ? true : config.js.block_all_media},
+                        mutationLimit: #{config.js.mutation_limit.to_i},
+                        mutationBreadcrumbLimit: #{config.js.mutation_breadcrumb_limit.to_i},
+                      }),
+            JS
+          end
 
           <<~SCRIPT
             <script src="/assets/haystack/bundle.tracing.replay.min.js"></script>
@@ -218,17 +240,12 @@ module Haystack
 
                   HS.init({
                     dsn: #{dsn.to_s.to_json},
-                    replaysSessionSampleRate: #{config.js.replays_session_sample_rate || 0},
-                    replaysOnErrorSampleRate: #{config.js.replays_on_error_sample_rate || 1},
+                    replaysSessionSampleRate: #{session_rate},
+                    replaysOnErrorSampleRate: #{error_rate},
                     environment: #{(config.js.environment || ::Rails.env).to_s.to_json},
                     tracesSampleRate: #{config.js.traces_sample_rate || 1},
                     integrations: [
-                      HS.replayIntegration({
-                        maskAllText: #{config.js.mask_all_text.nil? ? false : config.js.mask_all_text},
-                        blockAllMedia: #{config.js.block_all_media.nil? ? true : config.js.block_all_media},
-                        mutationLimit: #{config.js.mutation_limit.to_i},
-                        mutationBreadcrumbLimit: #{config.js.mutation_breadcrumb_limit.to_i},
-                      }),
+                      #{replay_integration}
                       HS.browserTracingIntegration(),
                     ]
                   });
