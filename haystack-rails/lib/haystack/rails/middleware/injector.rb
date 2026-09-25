@@ -8,6 +8,7 @@ module Haystack
         end
 
         ERROR_EVENT_ID_HEADER = 'X-Haystack-Event-Id'
+        BUNDLE_ASSET = 'haystack/bundle.tracing.replay.min.js'
 
         def call(env)
           status, headers, response = @app.call(env)
@@ -212,6 +213,9 @@ module Haystack
         # replay é encerrado e um buffer novo começa, pronto para o próximo erro.
         def generate_script(config:, dsn:, user_data:, session_data:, flash_messages:, request_params:, error_event_id: nil)
           after_error_ms = (config.js.replay_after_error_seconds || 30).to_i * 1000
+          # Caminho com digest (em produção só existe a versão precompilada com
+          # digest; /assets/haystack/bundle...js daria 404)
+          bundle_path = ::ActionController::Base.helpers.asset_path(BUNDLE_ASSET)
           # As taxas podem ser lambdas, avaliadas a cada página (ex.: lidas da
           # configuração do projeto); com as duas em zero o replay nem é ligado
           session_rate = resolve_setting(config.js.replays_session_sample_rate).to_f
@@ -233,7 +237,7 @@ module Haystack
           end
 
           <<~SCRIPT
-            <script src="/assets/haystack/bundle.tracing.replay.min.js"></script>
+            <script src="#{bundle_path}"></script>
             <script>
               (function () {
                 if (!window.Haystack) return;
