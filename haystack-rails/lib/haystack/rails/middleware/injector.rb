@@ -105,7 +105,7 @@ module Haystack
 
           # Mesmo filtro dos logs do Rails (filter_parameters), em todos os níveis
           params = controller.params.to_unsafe_h.except(:controller, :action)
-          ActiveSupport::ParameterFilter.new(::Rails.application.config.filter_parameters)
+          Haystack::Rails.parameter_filter
             .filter(params)
             .deep_transform_keys { |k| k.to_s.underscore }
         rescue => e

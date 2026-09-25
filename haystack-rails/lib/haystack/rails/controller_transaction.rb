@@ -58,7 +58,7 @@ module Haystack
 
       def haystack_filtered_session
         data = session.respond_to?(:to_hash) ? session.to_hash.except("_csrf_token") : {}
-        ActiveSupport::ParameterFilter.new(::Rails.application.config.filter_parameters).filter(data)
+        Haystack::Rails.parameter_filter.filter(data)
       end
 
       # RSS do processo em MB (Linux); o Haystack antigo mandava o mesmo dado
