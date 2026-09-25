@@ -15,7 +15,7 @@ Gem::Specification.new do |spec|
   spec.extra_rdoc_files = ["README.md", "LICENSE.txt"]
   spec.files = `git ls-files | grep -Ev '^(spec|benchmarks|examples|\.rubocop\.yml)'`.split("\n")
 
-  github_root_uri = 'https://github.com/gethaystack/haystack-ruby'
+  github_root_uri = 'https://github.com/codefarmdev/haystack'
   # Sem spec.homepage: validá-lo faz o rubygems carregar o uri padrão antes do
   # Bundler, o que conflita com apps que fixam outra versão da gem uri.
   homepage = "#{github_root_uri}/tree/#{spec.version}/#{spec.name}"
@@ -32,6 +32,6 @@ Gem::Specification.new do |spec|
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "haystack-ruby", "~> 5.22.1"
+  spec.add_dependency "haystack", "~> 1.0"
   spec.add_dependency "sidekiq", ">= 3.0"
 end

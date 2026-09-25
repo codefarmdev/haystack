@@ -15,7 +15,7 @@ Gem::Specification.new do |spec|
   spec.extra_rdoc_files = ["README.md", "LICENSE.txt"]
   spec.files = `git ls-files | grep -Ev '^(spec|benchmarks|examples|\.rubocop\.yml)'`.split("\n")
 
-  github_root_uri = 'https://github.com/pedrotyag/haystack'
+  github_root_uri = 'https://github.com/codefarmdev/haystack'
   # Sem spec.homepage: validá-lo faz o rubygems carregar o uri padrão antes do
   # Bundler, o que conflita com apps que fixam outra versão da gem uri.
   homepage = "#{github_root_uri}/tree/#{spec.version}/#{spec.name}"
@@ -33,7 +33,4 @@ Gem::Specification.new do |spec|
   # Dependências essenciais
   spec.add_dependency "concurrent-ruby", "~> 1.0", ">= 1.0.2"
   spec.add_dependency "bigdecimal"
-
-  # Dependência automática para projetos Rails
-  spec.add_dependency "haystack-rails"
 end

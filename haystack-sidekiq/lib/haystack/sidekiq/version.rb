@@ -2,6 +2,6 @@
 
 module Haystack
   module Sidekiq
-    VERSION = "5.22.1"
+    VERSION = "1.0.0"
   end
 end

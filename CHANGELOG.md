@@ -1,3 +1,16 @@
+## 1.0.0
+
+Primeira versão do Haystack baseada no sentry-ruby (5.22.1) e no SDK de
+navegador do Sentry (8.47), substituindo a 0.x (baseada no AppSignal, que
+segue disponível na tag v0.11.29).
+
+- Gems `haystack`, `haystack-rails` e `haystack-sidekiq`, enviando para o
+  endpoint de envelopes do Farmer (`HAYSTACK_DSN`)
+- SDK de navegador injetado pelo `haystack-rails`, com replay de erro (60 a
+  120 s antes do erro, mais 30 s depois), inclusive de erros do backend
+- Contexto da requisição (params e sessão filtrados, IP, memória)
+- `haystack/capistrano` para os marcadores de deploy
+
 ## Unreleased
 
 ### Features
