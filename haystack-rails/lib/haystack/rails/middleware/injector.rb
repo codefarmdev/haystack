@@ -224,6 +224,10 @@ module Haystack
                         blockAllMedia: #{config.js.block_all_media.nil? ? true : config.js.block_all_media},
                         mutationLimit: #{config.js.mutation_limit.to_i},
                         mutationBreadcrumbLimit: #{config.js.mutation_breadcrumb_limit.to_i},
+                        // Buffer síncrono: o bundle (patch do Haystack) mantém nele de 60
+                        // a 120 s antes do erro; o buffer compactado do worker não permite
+                        // descartar só o trecho antigo e voltaria a guardar de 0 a 60 s
+                        useCompression: false,
                       }),
             JS
           end
