@@ -1,0 +1,59 @@
+name: sentry-opentelemetry Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - \d+-\d+
+  pull_request:
+# Cancel in progress workflows on pull_requests.
+# https://docs.github.com/en/actions/using-jobs/using-concurrency#example-using-a-fallback-value
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+jobs:
+  ruby-versions:
+    uses: ruby/actions/.github/workflows/ruby_versions.yml@master
+    with:
+      engine: cruby-jruby
+      min_version: 2.6
+  test:
+    needs: ruby-versions
+    defaults:
+      run:
+        working-directory: sentry-opentelemetry
+    name: Ruby ${{ matrix.ruby_version }} & OpenTelemetry ${{ matrix.opentelemetry_version }}, options - ${{ toJson(matrix.options) }}
+    runs-on: ubuntu-latest
+    env:
+      RUBYOPT: ${{ matrix.options.rubyopt }}
+      BUNDLE_GEMFILE: ${{ github.workspace }}/sentry-opentelemetry/Gemfile
+      BUNDLE_WITHOUT: rubocop
+      OPENTELEMETRY_VERSION: ${{ matrix.opentelemetry_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby_version: ${{ fromJson(needs.ruby-versions.outputs.versions) }}
+        # opentelemetry_version: [1.2.0]
+        include:
+          - ruby_version: 3.2
+            options:
+              rubyopt: "--enable-frozen-string-literal --debug=frozen-string-literal"
+        exclude:
+          - { ruby_version: 'jruby-head' }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby ${{ matrix.ruby_version }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby_version }}
+          bundler-cache: true
+
+      - name: Run specs
+        run: bundle exec rake
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

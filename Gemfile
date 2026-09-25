@@ -1,3 +1,31 @@
-source 'https://rubygems.org'
+# frozen_string_literal: true
 
-gemspec
+source "https://rubygems.org"
+git_source(:github) { |name| "https://github.com/#{name}.git" }
+
+gem "rake", "~> 12.0"
+
+ruby_version = Gem::Version.new(RUBY_VERSION)
+
+gem "jar-dependencies", "0.4.1" if RUBY_PLATFORM == "java"
+
+# Development tools
+if ruby_version >= Gem::Version.new("2.7.0")
+  gem "debug", github: "ruby/debug", platform: :ruby
+  gem "irb"
+  gem "ruby-lsp-rspec" if ruby_version >= Gem::Version.new("3.0.0") && RUBY_PLATFORM != "java"
+end
+
+# For RSpec
+gem "rspec", "~> 3.0"
+gem "rspec-retry"
+gem "simplecov"
+gem "simplecov-cobertura", "~> 1.4"
+gem "rexml"
+
+group :rubocop do
+  gem "rubocop-rails-omakase"
+  gem "rubocop-packaging"
+end
+
+gem "haystack-rails", path: File.expand_path("haystack-rails", __dir__)

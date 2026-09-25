@@ -1,0 +1,26 @@
+codecov:
+  disable_default_path_fixes: true
+ignore:
+  - "**/spec/**"
+comment:
+  layout: "header, diff, flags, components, tree"
+component_management:
+  individual_components:
+    - component_id: "haystack-ruby"
+      paths:
+        - "haystack-ruby/"
+    - component_id: "haystack-rails"
+      paths:
+        - "haystack-rails/"
+    - component_id: "haystack-sidekiq"
+      paths:
+        - "haystack-sidekiq/"
+    - component_id: "haystack-resque"
+      paths:
+        - "haystack-resque/"
+    - component_id: "haystack-delayed_job"
+      paths:
+        - "haystack-delayed_job/"
+    - component_id: "haystack-opentelemetry"
+      paths:
+        - "haystack-opentelemetry/"

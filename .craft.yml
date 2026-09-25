@@ -1,0 +1,17 @@
+minVersion: '1.8.1'
+changelogPolicy: simple
+preReleaseCommand: ruby .scripts/batch_release.rb
+requireNames:
+  - /^haystack-ruby-.*\.gem$/
+  - /^haystack-ruby-core-.*\.gem$/
+  - /^haystack-rails-.*\.gem$/
+  - /^haystack-sidekiq-.*\.gem$/
+targets:
+    - name: gem
+    - name: registry
+      sdks:
+        'gem:haystack-ruby':
+        'gem:haystack-ruby-core':
+        'gem:haystack-rails':
+        'gem:haystack-sidekiq':
+    - name: github
