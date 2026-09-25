@@ -710,7 +710,7 @@ module Haystack
         self.dsn = ENV['HAYSTACK_DSN']
         self.replays_session_sample_rate = 0
         self.replays_on_error_sample_rate = 1
-        self.environment = ::Rails.env
+        self.environment = ::Rails.env if defined?(::Rails) && ::Rails.respond_to?(:env)
         self.traces_sample_rate = 1
         self.mask_all_text = false
         self.block_all_media = true

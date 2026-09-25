@@ -222,6 +222,18 @@ RSpec.describe Haystack do
       expect(event).to be_a(Haystack::ErrorEvent)
     end
 
+    it "is also available as add_exception and send_exception, like Haystack 0.x" do
+      expect(described_class.add_exception(exception)).to be_a(Haystack::ErrorEvent)
+
+      event = described_class.send_exception(ZeroDivisionError.new("tagged"), { area: "financeiro" })
+      expect(event.tags).to include(area: "financeiro")
+    end
+
+    it "does not touch the rack env outside a request" do
+      described_class.capture_exception(exception)
+      expect(described_class.get_current_scope.rack_env).to eq({})
+    end
+
     it "sends the exception via current hub" do
       expect do
         described_class.capture_exception(exception)

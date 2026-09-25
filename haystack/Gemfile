@@ -4,7 +4,7 @@ source "https://rubygems.org"
 git_source(:github) { |name| "https://github.com/#{name}.git" }
 
 gem "haystack", path: "./"
-gem "haystack-rails", path: "../haystack-rails"
+gem "haystack-rails", path: File.expand_path("../haystack-rails", __dir__)
 
 rack_version = ENV["RACK_VERSION"]
 rack_version = "3.0.0" if rack_version.nil?

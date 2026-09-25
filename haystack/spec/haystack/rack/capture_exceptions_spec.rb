@@ -84,6 +84,22 @@ RSpec.describe 'Haystack::Rack::CaptureExceptions', when: :rack_available? do
       expect(Haystack.get_current_scope.rack_env).to eq({})
     end
 
+    it "marks the response when the app captures an exception it rescued" do
+      app = lambda do |_e|
+        begin
+          raise ZeroDivisionError, "rescued"
+        rescue ZeroDivisionError => e
+          Haystack.add_exception(e)
+        end
+        [500, { "content-type" => "text/plain" }, ["erro"]]
+      end
+      stack = Haystack::Rack::CaptureExceptions.new(app)
+
+      stack.call(env)
+
+      expect(env["haystack.error_event_id"]).to eq(last_haystack_event.event_id)
+    end
+
     it 'passes rack/lint' do
       app = proc do
         [200, { 'content-type' => 'text/plain' }, ['OK']]

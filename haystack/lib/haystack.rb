@@ -423,7 +423,22 @@ module Haystack
     # @return [Event, nil]
     def capture_exception(exception, **options, &block)
       return unless initialized?
-      get_current_hub.capture_exception(exception, **options, &block)
+      get_current_hub.capture_exception(exception, **options, &block).tap do |event|
+        mark_request_with_error(event)
+      end
+    end
+
+    # Compatibilidade com o Haystack 0.x: os apps chamam add_exception/send_exception
+    # nos rescue_from dos controllers.
+    #
+    # @return [Event, nil]
+    def add_exception(exception)
+      capture_exception(exception)
+    end
+
+    # @return [Event, nil]
+    def send_exception(exception, tags = nil)
+      tags.is_a?(Hash) ? capture_exception(exception, tags: tags) : capture_exception(exception)
     end
 
     # Takes a block and evaluates it. If the block raised an exception, it reports the exception to Haystack and re-raises it.
@@ -605,6 +620,20 @@ module Haystack
     # @!visibility private
     def utc_now
       Time.now.utc
+    end
+
+    private
+
+    # Um erro capturado durante uma requisição (inclusive os tratados em
+    # rescue_from) marca a resposta com o id do evento: o injector o devolve no
+    # header X-Haystack-Event-Id e o SDK do navegador envia o replay do erro.
+    def mark_request_with_error(event)
+      return unless event && defined?(Haystack::Rack::CaptureExceptions)
+
+      env = get_current_scope&.rack_env
+      return unless env.is_a?(Hash) && !env.empty?
+
+      env[Haystack::Rack::CaptureExceptions::ERROR_EVENT_ID_KEY] ||= event.event_id
     end
   end
 end
