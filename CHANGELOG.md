@@ -1,8 +1,39 @@
+## 1.1.0
+
+Compatibilidade com os apps do Haystack 0.x e correções encontradas pela
+suíte de testes.
+
+- `Haystack.add_exception` e `Haystack.send_exception` (API do 0.x): os
+  `rescue_from` dos apps antigos continuam funcionando sem mudança
+- Erro capturado durante uma requisição (inclusive em `rescue_from`) marca a
+  resposta com `X-Haystack-Event-Id`, então o navegador envia o replay
+- `require 'haystack/capistrano'` volta a registrar o deploy sozinho depois de
+  `deploy:finished`, como no 0.x
+- `Haystack::DeployMarker`: o marcador de deploy fora do Capistrano
+- Correção (segurança): até o Rails 7.0, os breadcrumbs do controller levavam
+  a query string sem filtro (`?password=...`); agora passam pelo
+  `filter_parameters` do app
+- Correção: com Rack 3 (Rails 7.1+) o SDK não era injetado em respostas com
+  headers em minúsculas, como a página 500 estática do Rails
+- Correção: ao encerrar o replay depois do erro, um envio já agendado pelo SDK
+  podia criar um replay novo sem erro e sem o snapshot inicial;
+  `replay_after_error_seconds` passa a ter mínimo de 6 s (o SDK não envia
+  replays com menos de 5 s)
+- Correção: apps sem asset pipeline (sem Sprockets) não sobem mais com erro
+- Correção: o SDK do navegador usa a DSN do backend (`config.dsn`) quando não
+  há `config.js.dsn` nem `HAYSTACK_DSN`
+- O SDK do navegador não é injetado quando o Haystack está desligado no
+  ambiente, sem DSN ou sem asset pipeline
+- `config.js` não depende mais do Rails
+- A integração com GraphQL fica desligada (não é suportada)
+- Documentação em português (`README.md` e `docs/`) e suíte de integração com
+  apps Rails em Docker e navegador (`integration/`)
+
 ## 1.0.0
 
 Primeira versão do Haystack baseada no sentry-ruby (5.22.1) e no SDK de
 navegador do Sentry (8.47), substituindo a 0.x (baseada no AppSignal, que
-segue disponível na tag v0.11.29).
+segue no branch `master`; o 1.x fica no branch `v1`).
 
 - Gems `haystack`, `haystack-rails` e `haystack-sidekiq`, enviando para o
   endpoint de envelopes do Farmer (`HAYSTACK_DSN`)

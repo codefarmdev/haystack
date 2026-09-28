@@ -712,4 +712,41 @@ RSpec.describe Haystack::Configuration do
       expect(subject.profiler_class).to eq(Haystack::Profiler)
     end
   end
+
+  describe "#js (SDK do navegador injetado pelo haystack-rails)" do
+    it "tem padrões de replay só com erro e limites do SDK" do
+      js = subject.js
+
+      expect(js.replays_session_sample_rate).to eq(0)
+      expect(js.replays_on_error_sample_rate).to eq(1)
+      expect(js.traces_sample_rate).to eq(1)
+      expect(js.mask_all_text).to eq(false)
+      expect(js.block_all_media).to eq(true)
+      expect(js.mutation_limit).to eq(10_000)
+      expect(js.mutation_breadcrumb_limit).to eq(750)
+      expect(js.replay_after_error_seconds).to eq(30)
+      expect(js.user_name_method).to eq(:name)
+      expect(js.user_email_method).to eq(:email)
+    end
+
+    it "usa HAYSTACK_DSN como DSN do navegador" do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("HAYSTACK_DSN").and_return("http://haystack@farmer.test/api/v2/requests/tk")
+
+      expect(described_class.new.js.dsn).to eq("http://haystack@farmer.test/api/v2/requests/tk")
+    end
+
+    it "não depende do Rails (fora do Rails o ambiente fica em branco)" do
+      hide_const("Rails")
+
+      expect { described_class.new }.not_to raise_error
+      expect(described_class.new.js.environment).to be_nil
+    end
+
+    it "aceita lambdas nas taxas de replay (avaliadas a cada página pelo injector)" do
+      subject.js.replays_session_sample_rate = -> { 0.01 }
+
+      expect(subject.js.replays_session_sample_rate.call).to eq(0.01)
+    end
+  end
 end

@@ -26,7 +26,7 @@ gem "benchmark_driver"
 gem "benchmark-ipsa"
 gem "benchmark-memory"
 
-gem "yard", github: "lsegal/yard"
+gem "yard"
 gem "webrick"
 gem "faraday"
 gem "excon"

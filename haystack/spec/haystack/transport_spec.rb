@@ -513,7 +513,7 @@ RSpec.describe Haystack::Transport do
         expect(subject.send_event(event)).to eq(event)
 
         expect(io.string).to match(
-          /DEBUG -- haystack: \[Transport\] Sending envelope with items \[event\] #{event.event_id} to Haystack/
+          /DEBUG -- haystack: \[Transport\] Sending envelope with items \[event\] #{event.event_id} to Farmer/
         )
       end
     end

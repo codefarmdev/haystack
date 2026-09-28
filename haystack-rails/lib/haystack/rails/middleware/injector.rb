@@ -9,6 +9,7 @@ module Haystack
 
         ERROR_EVENT_ID_HEADER = 'X-Haystack-Event-Id'
         BUNDLE_ASSET = 'haystack/bundle.tracing.replay.min.js'
+        MIN_REPLAY_AFTER_ERROR_SECONDS = 6
 
         def call(env)
           status, headers, response = @app.call(env)
@@ -16,13 +17,13 @@ module Haystack
           # Avisa o SDK do navegador que esta requisição gerou um erro no
           # backend: ele envia o replay do último minuto (ver generate_script)
           error_event_id = backend_error_event_id(env)
-          headers[ERROR_EVENT_ID_HEADER] = error_event_id if error_event_id
+          headers[header_name(ERROR_EVENT_ID_HEADER)] = error_event_id if error_event_id
 
-          if html_response?(headers)
+          if html_response?(headers) && browser_sdk_enabled?
             begin
               body_content = extract_body(response)
               response_body = inject_script(body_content, env, error_event_id)
-              headers['Content-Length'] = response_body.bytesize.to_s
+              headers[header_key(headers, 'Content-Length')] = response_body.bytesize.to_s
               # O corpo original precisa ser fechado: é o close que encerra a
               # requisição no Rails (executor/reloader); sem ele o lock de
               # recarga fica preso e o app trava em development
@@ -51,8 +52,44 @@ module Haystack
           event_id if event_id.is_a?(String) && event_id.match?(/\A[0-9a-f]{32}\z/)
         end
 
+        # O SDK do navegador só entra quando o Haystack está ligado neste
+        # ambiente (enabled_environments), há DSN e o app tem asset pipeline
+        # para servir o bundle
+        def browser_sdk_enabled?
+          config = Haystack.configuration if Haystack.initialized?
+          return false unless config&.enabled_in_current_env?
+          return false if browser_dsn(config).blank?
+
+          asset_pipeline?
+        end
+
+        # config.js.dsn (quando o navegador precisa de outro endereço), senão a
+        # mesma DSN do backend (config.dsn), senão HAYSTACK_DSN
+        def browser_dsn(config)
+          config.js.dsn.presence || config.dsn&.to_s.presence || ENV['HAYSTACK_DSN']
+        end
+
+        def asset_pipeline?
+          ::Rails.application.config.respond_to?(:assets)
+        end
+
         def html_response?(headers)
-          headers['Content-Type']&.include?('text/html')
+          headers[header_key(headers, 'Content-Type')].to_s.include?('text/html')
+        end
+
+        # O Rack 3 (Rails 7.1+) exige nomes de header em minúsculas, e páginas
+        # como a de erro estática do Rails devolvem um Hash comum com
+        # "content-type": lê e escreve sem depender da caixa
+        def header_key(headers, name)
+          headers.keys.find { |key| key.to_s.casecmp?(name) } || header_name(name)
+        end
+
+        def header_name(name)
+          rack3? ? name.downcase : name
+        end
+
+        def rack3?
+          defined?(::Rack::RELEASE) && ::Rack::RELEASE.to_i >= 3
         end
 
         def extract_body(response)
@@ -67,9 +104,9 @@ module Haystack
         end
 
         def inject_script(body, env, error_event_id = nil)
-          config = Haystack.instance_variable_get(:@global_configuration)
+          config = Haystack.configuration
 
-          dsn = same_origin_dsn(config.js.dsn || ENV['HAYSTACK_DSN'], env)
+          dsn = same_origin_dsn(browser_dsn(config), env)
 
           script_content = generate_script(
             config: config,
@@ -212,7 +249,9 @@ module Haystack
         # enviado e a gravação continua por replay_after_error_seconds; depois o
         # replay é encerrado e um buffer novo começa, pronto para o próximo erro.
         def generate_script(config:, dsn:, user_data:, session_data:, flash_messages:, request_params:, error_event_id: nil)
-          after_error_ms = (config.js.replay_after_error_seconds || 30).to_i * 1000
+          # Mínimo de 6 s: o stop() do SDK só envia o que foi gravado se o replay
+          # já tem 5 s (minReplayDuration); com menos, a gravação se perderia
+          after_error_ms = [(config.js.replay_after_error_seconds || 30).to_i, MIN_REPLAY_AFTER_ERROR_SECONDS].max * 1000
           # Caminho com digest (em produção só existe a versão precompilada com
           # digest; /assets/haystack/bundle...js daria 404)
           bundle_path = ::ActionController::Base.helpers.asset_path(BUNDLE_ASSET)
@@ -287,7 +326,13 @@ module Haystack
                       writeStopAt(0);
                       var r = replay();
                       if (!startedByError(r)) return;
-                      Promise.resolve(r.stop()).then(function () { r.startBuffering(); });
+                      Promise.resolve(r.stop()).then(function () {
+                        // Se havia um envio em andamento, o stop() agenda outro para
+                        // ~5 s depois; ele dispararia já no buffer novo e mandaria um
+                        // replay sem erro (achado da suíte de integração)
+                        try { r._replay.cancelFlush(); } catch (e) {}
+                        r.startBuffering();
+                      });
                     }, Math.max(0, stopAt - Date.now()));
                   };
 

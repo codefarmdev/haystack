@@ -73,7 +73,7 @@ RSpec.describe Haystack::Rails::Tracing, type: :request do
       expect(transaction[:spans].count).to eq(3)
 
       first_span = transaction[:spans][0]
-      expect(first_span[:data].keys).to match_array(["http.response.status_code", :format, :method, :path, :params])
+      expect(first_span[:data].keys).to match_array(["http.response.status_code", :format, :method, :path, :params, :view_runtime])
       expect(first_span[:op]).to eq("view.process_action.action_controller")
       expect(first_span[:origin]).to eq("auto.view.rails")
       expect(first_span[:description]).to eq("PostsController#show")

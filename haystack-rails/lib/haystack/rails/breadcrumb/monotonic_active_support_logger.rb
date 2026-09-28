@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
+require "cgi"
 require "haystack/rails/instrument_payload_cleanup_helper"
+require "haystack/rails/breadcrumb/path_filter"
 
 module Haystack
   module Rails
@@ -17,6 +19,7 @@ module Haystack
               # we should only mutate the copy of the data
               data = data.dup
               cleanup_data(data)
+              data = PathFilter.filter_data(data)
             end
 
             crumb = Haystack::Breadcrumb.new(

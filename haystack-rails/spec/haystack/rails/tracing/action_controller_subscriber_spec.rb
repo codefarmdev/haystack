@@ -41,7 +41,7 @@ RSpec.describe Haystack::Rails::Tracing::ActionControllerSubscriber, :subscriber
       expect(span[:origin]).to eq("auto.view.rails")
       expect(span[:description]).to eq("HelloController#world")
       expect(span[:trace_id]).to eq(transaction.dig(:contexts, :trace, :trace_id))
-      expect(span[:data].keys).to match_array(["http.response.status_code", :format, :method, :path, :params])
+      expect(span[:data].keys).to match_array(["http.response.status_code", :format, :method, :path, :params, :view_runtime])
     end
   end
 

@@ -1,1 +1,0 @@
-sentry-ruby/README.md

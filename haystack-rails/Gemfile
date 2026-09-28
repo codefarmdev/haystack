@@ -5,7 +5,7 @@ git_source(:github) { |name| "https://github.com/#{name}.git" }
 
 # Specify your gem's dependencies in haystack.gemspec
 gemspec
-# gem "haystack", path: "../haystack"
+gem "haystack", path: File.expand_path("../haystack", __dir__)
 
 platform :jruby do
   gem "activerecord-jdbcmysql-adapter"
@@ -19,6 +19,9 @@ rails_version = "8.0.0" if rails_version.nil?
 rails_version = Gem::Version.new(rails_version)
 
 gem "rails", "~> #{rails_version}"
+
+# O ActiveSupport < 7.1 passa quirks_mode ao JSON.generate, opção removida no json 2.10
+gem "json", "< 2.10" if rails_version < Gem::Version.new("7.1.0")
 
 if rails_version >= Gem::Version.new("8.0.0")
   gem "rspec-rails"

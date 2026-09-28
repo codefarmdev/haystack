@@ -28,4 +28,3 @@ group :rubocop do
   gem "rubocop-packaging"
 end
 
-gem "haystack-rails", path: File.expand_path("haystack-rails", __dir__)

@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "cgi"
+require "haystack/rails/breadcrumb/path_filter"
+
 module Haystack
   module Rails
     module Breadcrumb
@@ -10,7 +13,7 @@ module Haystack
             return if name.start_with?("!")
 
             if data.is_a?(Hash)
-              data = data.slice(*@allowed_keys[name])
+              data = PathFilter.filter_data(data.slice(*@allowed_keys[name]))
             end
 
             crumb = Haystack::Breadcrumb.new(

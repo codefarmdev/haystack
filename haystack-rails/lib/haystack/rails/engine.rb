@@ -11,8 +11,10 @@ module Haystack
       app.middleware.insert_before ActionDispatch::ShowExceptions, Haystack::Rails::Middleware::Injector
     end
 
+    # Apps sem asset pipeline (sem Sprockets) não têm config.assets: sem essa
+    # checagem o boot quebrava; nesses apps o SDK do navegador fica desligado
     initializer 'haystack.assets.precompile' do |app|
-      app.config.assets.precompile += %w[haystack/bundle.tracing.replay.min.js]
+      app.config.assets.precompile += %w[haystack/bundle.tracing.replay.min.js] if app.config.respond_to?(:assets)
     end
   end
 end

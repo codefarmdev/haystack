@@ -12,7 +12,7 @@ RSpec.describe "rake auto-reporting" do
       message = `cd spec/support && bundle exec rake raise_exception 2>&1`
     end.join
 
-    expect(message).to match(/\[Transport\] Sending envelope with items \[event\] [abcdef0-9]+ to Haystack/)
+    expect(message).to match(/\[Transport\] Sending envelope with items \[event\] [abcdef0-9]+ to Farmer/)
   end
 
   it "skip sending report to Haystack when skip_rake_integration = true" do
