@@ -1,0 +1,107 @@
+# Uma entrada da matriz (Ruby x Rails), para depurar à mão com o docker compose
+# (se estiver instalado). O bin/rodar NÃO usa este arquivo: ele sobe os mesmos
+# containers só com o docker CLI; mantenha os dois em sincronia.
+#
+#   ENTRADA=ruby3.2-rails6.1.7.10 RUBY_VERSION=3.2 RAILS_VERSION=6.1.7.10 \
+#     docker compose -p haystack-integracao-dev up -d --wait receiver app chrome
+#   docker compose -p haystack-integracao-dev run --rm tester rspec spec/backend_spec.rb
+#   docker compose -p haystack-integracao-dev down
+#
+# Variáveis:
+#   ENTRADA        nome da entrada (volume do bundle e pasta em tmp/)
+#   RUBY_VERSION   tag da imagem ruby (ex.: 2.6.4, 3.2); 2.x exige
+#                  BUNDLE_FORCE_RUBY_PLATFORM=true
+#   RAILS_VERSION  versão do Rails (ex.: 5.2.8.1, 6.1.7.10, 7.2)
+# Nenhuma porta é publicada no host: tudo conversa pela rede do compose.
+name: haystack-integracao
+
+services:
+  receiver:
+    build:
+      context: .
+      dockerfile: Dockerfile.receiver
+    image: haystack-integracao-receiver:latest
+    environment:
+      DUMP_DIR: /dump
+    volumes:
+      - ./tmp/${ENTRADA:-local}/envelopes:/dump
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9292/_saude"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+      args:
+        RUBY_VERSION: ${RUBY_VERSION:-3.2}
+    image: haystack-integracao-app:${ENTRADA:-local}
+    environment:
+      RAILS_VERSION: ${RAILS_VERSION:-6.1.7.10}
+      HAYSTACK_DSN: http://haystack@receiver:9292/api/v2/requests/token-integracao
+      HAYSTACK_REPLAY_AFTER_ERROR_SECONDS: ${HAYSTACK_REPLAY_AFTER_ERROR_SECONDS:-7}
+      SECRET_KEY_BASE: integracao-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      # Ruby 2.6: a imagem tem glibc antiga e o nokogiri pré-compilado não
+      # carrega; compila do fonte
+      BUNDLE_FORCE_RUBY_PLATFORM: ${BUNDLE_FORCE_RUBY_PLATFORM:-false}
+    volumes:
+      - ..:/haystack:ro
+      - bundle:/usr/local/bundle
+    # O Chrome força https em "app" (o TLD .app está na lista de HSTS
+    # preload): o navegador acessa o app como http://aplicacao:3000
+    networks:
+      default:
+        aliases: [aplicacao]
+    # No glibc antigo (Ruby 2.6) a consulta A/AAAA em paralelo ao DNS do Docker
+    # às vezes leva 5 s e o envio estoura o open_timeout (1 s) do SDK
+    dns_opt:
+      - single-request-reopen
+    depends_on:
+      receiver:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/saude"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      # a primeira subida instala as gems (nokogiri do fonte no Ruby 2.6)
+      start_period: 1200s
+
+  chrome:
+    image: selenium/standalone-chromium:latest
+    shm_size: 2g
+    environment:
+      SE_NODE_MAX_SESSIONS: "1"
+      SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+      SE_SESSION_REQUEST_TIMEOUT: "60"
+      SE_VNC_NO_PASSWORD: "1"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4444/status"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  tester:
+    build:
+      context: .
+      dockerfile: Dockerfile.tester
+    image: haystack-integracao-tester:latest
+    environment:
+      APP_URL: http://aplicacao:3000
+      RECEIVER_URL: http://receiver:9292
+      SELENIUM_URL: http://chrome:4444
+      ENTRADA: ${ENTRADA:-local}
+      RUBY_VERSION_APP: ${RUBY_VERSION:-3.2}
+      RAILS_VERSION_APP: ${RAILS_VERSION:-6.1.7.10}
+      HAYSTACK_REPLAY_AFTER_ERROR_SECONDS: ${HAYSTACK_REPLAY_AFTER_ERROR_SECONDS:-7}
+    volumes:
+      - ./spec:/integration/spec:ro
+      - ./.rspec:/integration/.rspec:ro
+      - ./tmp:/integration/tmp
+    profiles: ["tester"]
+
+volumes:
+  bundle:
+    name: haystack-integracao-bundle-${ENTRADA:-local}

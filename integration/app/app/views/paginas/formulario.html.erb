@@ -1,0 +1,7 @@
+<h1 id="titulo">Formulário (<%= modo %>)</h1>
+<%= form_tag formulario_path(modo: modo, marca: params[:marca]), id: 'form-dados' do %>
+  <p><label>Nome <input type="text" name="nome" id="nome"></label></p>
+  <p><label>Senha <input type="password" name="password" id="password"></label></p>
+  <p><label>Cartão <input type="text" name="cartao" id="cartao"></label></p>
+  <p><button type="submit" id="enviar">Enviar</button></p>
+<% end %>

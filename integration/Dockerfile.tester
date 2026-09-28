@@ -1,0 +1,6 @@
+# Roda a suíte RSpec (HTTP direto no app + Chrome remoto via Selenium)
+FROM ruby:3.2
+RUN gem install --no-document rspec:'~> 3.13' selenium-webdriver:'~> 4.25' rspec_junit_formatter
+ENV LANG=C.UTF-8
+WORKDIR /integration
+CMD ["rspec"]

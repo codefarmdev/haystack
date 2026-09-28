@@ -1,0 +1,25 @@
+#!/bin/bash
+# Sobe o app de integração: instala as gems (cache no volume do bundle),
+# precompila os assets e inicia o puma na porta 3000.
+set -euo pipefail
+cd /app
+
+# O Gemfile.lock fica no volume do bundle entre execuções: evita resolver as
+# dependências de novo a cada subida (o volume é um por entrada da matriz)
+CACHE_DIR="${BUNDLE_PATH:-/usr/local/bundle}/.integracao"
+CHAVE="$(cat Gemfile | sha256sum | cut -d' ' -f1)-${RAILS_VERSION}"
+mkdir -p "$CACHE_DIR"
+if [ -f "$CACHE_DIR/Gemfile.lock" ] && [ "$(cat "$CACHE_DIR/chave" 2>/dev/null)" = "$CHAVE" ]; then
+  cp "$CACHE_DIR/Gemfile.lock" Gemfile.lock
+fi
+
+echo "[app] ruby $(ruby -e 'print RUBY_VERSION'), bundler $(bundle -v), RAILS_VERSION=${RAILS_VERSION}"
+bundle check >/dev/null 2>&1 || bundle install --jobs 4 --retry 3
+cp Gemfile.lock "$CACHE_DIR/Gemfile.lock"
+echo "$CHAVE" > "$CACHE_DIR/chave"
+
+echo "[app] precompilando assets"
+bundle exec rake assets:precompile
+
+echo "[app] iniciando puma"
+exec bundle exec puma -b tcp://0.0.0.0:3000 -t 5:5 -e production config.ru

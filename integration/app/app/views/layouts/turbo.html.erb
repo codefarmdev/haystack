@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Haystack integração (turbo)</title>
+  <%= csrf_meta_tags %>
+  <%= stylesheet_link_tag 'application', media: 'all', 'data-turbolinks-track': 'reload' %>
+  <%= javascript_include_tag 'turbo', 'data-turbolinks-track': 'reload' %>
+</head>
+<body data-modo="turbo">
+  <%= render 'paginas/navegacao' %>
+  <main><%= yield %></main>
+</body>
+</html>

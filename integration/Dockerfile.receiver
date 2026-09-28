@@ -1,0 +1,6 @@
+# Farmer falso: recebe e decodifica os envelopes do Haystack
+FROM ruby:3.2
+RUN gem install --no-document webrick
+COPY receiver/receiver.rb /receiver/receiver.rb
+EXPOSE 9292
+CMD ["ruby", "/receiver/receiver.rb"]

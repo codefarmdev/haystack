@@ -1,0 +1,29 @@
+# App Rails mínimo da suíte de integração do Haystack.
+#
+# A versão do Rails vem de RAILS_VERSION (ver docker-compose.yml / bin/rodar):
+#   "5.2.8.1" ou "6.1.7.10" -> versão exata
+#   "7.2"                    -> "~> 7.2.0" (última 7.2.x)
+# As gems do Haystack vêm do repositório montado em /haystack (somente leitura).
+source 'https://rubygems.org'
+
+rails_version = ENV.fetch('RAILS_VERSION', '6.1.7.10')
+rails_requirement = rails_version.count('.') >= 2 ? rails_version : "~> #{rails_version}.0"
+rails_serie = Gem::Version.new(rails_version).segments.first(2).join('.').to_f
+
+gem 'rails', rails_requirement
+gem 'turbolinks', '~> 5.2'
+
+if rails_serie < 6
+  # Mesmo conjunto que roda nos projetos Rails 5.2 / Ruby 2.6.4
+  gem 'sprockets', '~> 3.7'
+  gem 'puma', '~> 4.3'
+  gem 'nokogiri', '~> 1.13.10'
+else
+  gem 'puma', '~> 6.4'
+end
+
+# A partir do Rails 7 o Sprockets deixou de ser dependência do rails
+gem 'sprockets-rails' if rails_serie >= 7
+
+gem 'haystack', path: '/haystack/haystack'
+gem 'haystack-rails', path: '/haystack/haystack-rails'

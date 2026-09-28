@@ -1,0 +1,13 @@
+<nav>
+  <%= link_to 'Início', inicio_path(modo: modo, marca: params[:marca]), id: 'link-inicio' %> |
+  <%= link_to 'Página 2', pagina2_path(modo: modo, marca: params[:marca]), id: 'link-pagina2' %> |
+  <%= link_to 'Formulário', formulario_path(modo: modo, marca: params[:marca]), id: 'link-formulario' %> |
+  <%= link_to 'Erro não tratado', erro_nao_tratado_path(modo: modo, marca: params[:marca]), id: 'link-erro-nao-tratado' %> |
+  <%= link_to 'Erro tratado (render)', erro_render_path(modo: modo, marca: params[:marca]), id: 'link-erro-render' %> |
+  <%= link_to 'Erro tratado (redirect)', erro_redirect_path(modo: modo, marca: params[:marca]), id: 'link-erro-redirect' %>
+</nav>
+<p>
+  <button id="erro-js" type="button" onclick="funcaoQueNaoExiste()">Erro de JS</button>
+  <button id="erro-js-2" type="button" onclick="outraFuncaoQueNaoExiste()">Outro erro de JS</button>
+  <button id="botao-morto" type="button">Botão morto</button>
+</p>

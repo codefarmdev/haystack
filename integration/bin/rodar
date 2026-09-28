@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+# Roda a suíte de integração do Haystack na matriz Ruby x Rails.
+#
+# Para cada entrada: build das imagens, sobe receptor (Farmer falso), app Rails
+# e Chrome numa rede Docker própria, roda o RSpec no container tester e
+# derruba tudo (os volumes com as gems ficam, como cache).
+#
+# Uso: integration/bin/rodar [opções]
+#   --so VERSAO_RUBY     roda só as entradas cujo Ruby começa com VERSAO_RUBY (ex.: --so 2.6)
+#   --com-rails7         inclui a entrada opcional com Rails 7.x
+#   --manter             não derruba os containers no fim (para depurar)
+#   --fixtures DIR       copia os envelopes brutos recebidos para DIR/<entrada>/
+#   --exemplo PADRAO     repassa ao rspec como -e PADRAO (filtra os testes)
+#   --rspec "ARGS"       argumentos extras para o rspec (ex.: "spec/backend_spec.rb")
+#   -h | --help          esta ajuda
+#
+# Só usa o docker CLI (não precisa do docker compose).
+set -uo pipefail
+
+INTEGRACAO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO="$(cd "$INTEGRACAO/.." && pwd)"
+TMP="$INTEGRACAO/tmp"
+
+# Entradas: "RUBY|RAILS" (RUBY é a tag da imagem oficial ruby:<RUBY>)
+MATRIZ_PADRAO=("2.6.4|5.2.8.1" "3.0|6.1.7.10" "3.2|6.1.7.10")
+MATRIZ_RAILS7=("3.3|7.2")
+
+SO=""
+MANTER=0
+FIXTURES=""
+COM_RAILS7=0
+RSPEC_ARGS=()
+REPLAY_APOS_ERRO="${HAYSTACK_REPLAY_AFTER_ERROR_SECONDS:-7}"
+TIMEOUT_APP="${TIMEOUT_APP:-1500}"
+
+ajuda() { sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --so) SO="$2"; shift 2 ;;
+    --manter) MANTER=1; shift ;;
+    --fixtures) FIXTURES="$2"; shift 2 ;;
+    --com-rails7) COM_RAILS7=1; shift ;;
+    --exemplo) RSPEC_ARGS+=(-e "$2"); shift 2 ;;
+    --rspec) read -r -a extras <<< "$2"; RSPEC_ARGS+=("${extras[@]}"); shift 2 ;;
+    -h|--help) ajuda; exit 0 ;;
+    *) echo "opção desconhecida: $1"; ajuda; exit 2 ;;
+  esac
+done
+
+command -v docker >/dev/null || { echo "docker não encontrado"; exit 2; }
+docker info >/dev/null 2>&1 || { echo "o daemon do docker não responde (colima start?)"; exit 2; }
+
+MATRIZ=("${MATRIZ_PADRAO[@]}")
+[ "$COM_RAILS7" = 1 ] && MATRIZ+=("${MATRIZ_RAILS7[@]}")
+
+SELECIONADAS=()
+for entrada in "${MATRIZ[@]}"; do
+  ruby="${entrada%%|*}"
+  if [ -z "$SO" ] || [[ "$ruby" == "$SO"* ]]; then SELECIONADAS+=("$entrada"); fi
+done
+if [ ${#SELECIONADAS[@]} -eq 0 ]; then
+  echo "nenhuma entrada da matriz corresponde a --so $SO"
+  exit 2
+fi
+
+mkdir -p "$TMP"
+log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
+
+# Imagens compartilhadas por todas as entradas
+log "build do receptor e do tester"
+docker build -q -f "$INTEGRACAO/Dockerfile.receiver" -t haystack-integracao-receiver:latest "$INTEGRACAO" >/dev/null || exit 1
+docker build -q -f "$INTEGRACAO/Dockerfile.tester" -t haystack-integracao-tester:latest "$INTEGRACAO" >/dev/null || exit 1
+
+derrubar() {
+  local prefixo="$1"
+  docker rm -f "$prefixo-app" "$prefixo-receiver" "$prefixo-chrome" "$prefixo-tester" >/dev/null 2>&1
+  docker network rm "$prefixo" >/dev/null 2>&1
+}
+
+# Espera o comando (executado dentro do container) responder, ou o container morrer
+esperar() {
+  local container="$1" url="$2" limite="$3" inicio=$SECONDS
+  while true; do
+    docker exec "$container" curl -fsS -o /dev/null "$url" >/dev/null 2>&1 && return 0
+    if [ "$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null)" != "true" ]; then
+      echo "container $container parou"; return 1
+    fi
+    if [ $((SECONDS - inicio)) -ge "$limite" ]; then
+      echo "timeout esperando $url em $container"; return 1
+    fi
+    sleep 2
+  done
+}
+
+RESULTADOS=()
+FALHOU=0
+
+for entrada in "${SELECIONADAS[@]}"; do
+  ruby="${entrada%%|*}"
+  rails="${entrada##*|}"
+  slug="ruby${ruby}-rails${rails}"
+  prefixo="haystack-integracao-${slug//./-}"
+  saida="$TMP/$slug"
+  inicio=$SECONDS
+
+  log "entrada $slug"
+  rm -rf "$saida"; mkdir -p "$saida/envelopes"
+  derrubar "$prefixo"
+
+  forcar_ruby=false
+  [[ "$ruby" == 2.* ]] && forcar_ruby=true
+
+  status="falhou"; resumo="-"
+  if ! docker build -q -f "$INTEGRACAO/Dockerfile.app" --build-arg "RUBY_VERSION=$ruby" \
+      -t "haystack-integracao-app:$slug" "$INTEGRACAO" > "$saida/build.log" 2>&1; then
+    resumo="build da imagem falhou (ver $saida/build.log)"
+  else
+    docker network create "$prefixo" >/dev/null
+    docker volume create "haystack-integracao-bundle-$slug" >/dev/null
+
+    docker run -d --name "$prefixo-receiver" --network "$prefixo" --network-alias receiver \
+      -e DUMP_DIR=/dump -v "$saida/envelopes:/dump" \
+      haystack-integracao-receiver:latest >/dev/null
+
+    docker run -d --name "$prefixo-chrome" --network "$prefixo" --network-alias chrome \
+      --shm-size 2g -e SE_NODE_MAX_SESSIONS=1 -e SE_NODE_OVERRIDE_MAX_SESSIONS=true \
+      -e SE_SESSION_REQUEST_TIMEOUT=60 \
+      selenium/standalone-chromium:latest >/dev/null
+
+    # single-request-reopen: no glibc antigo (imagem do Ruby 2.6) a consulta
+    # A/AAAA em paralelo ao DNS do Docker às vezes leva 5 s, e o envio do
+    # evento estoura o open_timeout (1 s) do SDK
+    docker run -d --name "$prefixo-app" --network "$prefixo" --network-alias aplicacao \
+      --dns-option single-request-reopen \
+      -e RAILS_VERSION="$rails" \
+      -e HAYSTACK_DSN=http://haystack@receiver:9292/api/v2/requests/token-integracao \
+      -e HAYSTACK_REPLAY_AFTER_ERROR_SECONDS="$REPLAY_APOS_ERRO" \
+      -e SECRET_KEY_BASE=integracao-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+      -e BUNDLE_FORCE_RUBY_PLATFORM="$forcar_ruby" \
+      -v "$REPO:/haystack:ro" \
+      -v "haystack-integracao-bundle-$slug:/usr/local/bundle" \
+      "haystack-integracao-app:$slug" >/dev/null
+
+    echo "aguardando o app (a primeira subida instala as gems; pode levar minutos)..."
+    if esperar "$prefixo-receiver" http://localhost:9292/_saude 60 && \
+       esperar "$prefixo-app" http://localhost:3000/saude "$TIMEOUT_APP" && \
+       esperar "$prefixo-chrome" http://localhost:4444/status 120; then
+      echo "app no ar em $((SECONDS - inicio)) s; rodando os testes"
+      docker run --name "$prefixo-tester" --network "$prefixo" \
+        -e APP_URL=http://aplicacao:3000 -e RECEIVER_URL=http://receiver:9292 -e SELENIUM_URL=http://chrome:4444 \
+        -e ENTRADA="$slug" -e RUBY_VERSION_APP="$ruby" -e RAILS_VERSION_APP="$rails" \
+        -e HAYSTACK_REPLAY_AFTER_ERROR_SECONDS="$REPLAY_APOS_ERRO" \
+        -v "$INTEGRACAO/spec:/integration/spec:ro" -v "$INTEGRACAO/.rspec:/integration/.rspec:ro" \
+        -v "$saida:/integration/tmp/saida" \
+        haystack-integracao-tester:latest \
+        rspec --format documentation --format RspecJunitFormatter --out tmp/saida/junit.xml \
+          --format progress --out tmp/saida/rspec.txt ${RSPEC_ARGS[@]+"${RSPEC_ARGS[@]}"} 2>&1 | tee "$saida/tester.log"
+      codigo=${PIPESTATUS[0]}
+      resumo="$(grep -E '^[0-9]+ examples?, ' "$saida/tester.log" | tail -1)"
+      [ -z "$resumo" ] && resumo="rspec não terminou (código $codigo)"
+      [ "$codigo" = 0 ] && status="passou"
+    else
+      resumo="app não subiu (ver $saida/app.log)"
+    fi
+    docker logs "$prefixo-app" > "$saida/app.log" 2>&1
+    docker logs "$prefixo-receiver" > "$saida/receiver.log" 2>&1
+  fi
+
+  if [ -n "$FIXTURES" ]; then
+    mkdir -p "$FIXTURES/$slug"
+    cp "$saida"/envelopes/*.envelope "$FIXTURES/$slug/" 2>/dev/null
+    echo "envelopes copiados para $FIXTURES/$slug ($(ls "$FIXTURES/$slug" | wc -l | tr -d ' ') arquivos)"
+  fi
+
+  if [ "$MANTER" = 1 ]; then
+    echo "containers mantidos (--manter): docker rm -f $prefixo-{app,receiver,chrome,tester}; docker network rm $prefixo"
+  else
+    derrubar "$prefixo"
+  fi
+
+  duracao=$((SECONDS - inicio))
+  [ "$status" = "passou" ] || FALHOU=1
+  RESULTADOS+=("$slug|$status|$resumo|${duracao}s")
+  printf '%s | %s | %s | %ss\n' "$slug" "$status" "$resumo" "$duracao" >> "$TMP/historico.txt"
+done
+
+RELATORIO="$TMP/resumo.txt"
+{
+  echo "Resumo da matriz de integração do Haystack ($(date '+%Y-%m-%d %H:%M'))"
+  printf '%-30s %-8s %-45s %s\n' "ENTRADA" "STATUS" "EXEMPLOS" "DURAÇÃO"
+  for r in "${RESULTADOS[@]}"; do
+    IFS='|' read -r slug status resumo duracao <<< "$r"
+    printf '%-30s %-8s %-45s %s\n' "$slug" "$status" "$resumo" "$duracao"
+  done
+} | tee "$RELATORIO"
+echo "relatórios em $TMP/<entrada>/ (junit.xml, rspec.txt, tester.log, app.log)"
+
+exit $FALHOU

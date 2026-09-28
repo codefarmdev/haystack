@@ -15,3 +15,6 @@ Gemfile.lock
 .rgignore
 
 examples/**/node_modules
+
+# Saídas da suíte de integração (relatórios, envelopes, logs)
+integration/tmp/
